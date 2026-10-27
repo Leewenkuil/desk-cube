@@ -277,6 +277,10 @@ img { max-width: 100%; }
   .hint-text { margin: 0; line-height: 1.5; font-size: 0.9rem; }
   .hint-moves { display: flex; flex-direction: column; gap: 8px; }
   .hint-phase { display: flex; flex-direction: column; gap: 4px; }
+  .lesson-parts { display: flex; flex-direction: column; gap: 12px; }
+  .part-cap { font-size: 0.88rem; font-weight: 600; line-height: 1.35; }
+  .lesson-empty { margin: 0; color: var(--muted); font-size: 0.88rem; }
+  .lesson-body .lesson-note { color: var(--muted); font-size: 0.88rem; }
   .hint-box .alg span { background: var(--surface); }
   .hint-box .actions button { padding: 8px 4px; font-size: 0.85rem; }
   .link-btn { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 500; text-align: left; text-decoration: underline; text-underline-offset: 3px; }
@@ -591,8 +595,8 @@ img { max-width: 100%; }
       <h3 class="lesson-title" id="lessonTitle"></h3>
       <div class="lesson-body" id="lessonBody"></div>
       <section id="lessonAlgWrap">
-        <h2>Moves</h2>
-        <div class="alg" id="lessonAlg"></div>
+        <h2>Worked example</h2>
+        <div class="lesson-parts" id="lessonAlg"></div>
       </section>
       <div class="actions" id="lessonActions">
         <button id="exampleBtn" title="Set the cube to an example of this step">Set up example</button>
@@ -982,18 +986,13 @@ img { max-width: 100%; }
 
   function onMoveDone(item) {
     if (item.layer === null || item.layer === 0) paintMaps();   // only these move the centers
-    if (item.scramble || item.setup) {
-      if (!queue.some(q => q.scramble || q.setup)) {
+    if (item.quiet) return;
+    if (item.scramble) {
+      if (!queue.some(q => q.scramble)) {
         state.scrambling = false;
-        if (item.setup) {
-          lesson.ready = true;
-          setLessonStatus(lesson.pos === 0 && lesson.autoplay ? 'Playing the moves…' : 'Example ready. Press Play, or Next move to go one turn at a time.');
-          renderLesson();
-        } else {
-          state.mode = 'ready';
-          renderTime(0);
-          setStatus('Scrambled. The timer starts on your first turn.');
-        }
+        state.mode = 'ready';
+        renderTime(0);
+        setStatus('Scrambled. The timer starts on your first turn.');
         renderPanel();
         renderStages();
       }
@@ -1003,8 +1002,15 @@ img { max-width: 100%; }
     if (!queue.length) renderStages();
     if (item.lessonIndex !== undefined) {
       lesson.pos = item.lessonIndex + 1;
-      if (lesson.pos === lessonMoves().length) {
-        setLessonStatus(isSolved() ? 'Solved. That is this step done.' : 'Those are all the moves for this example.', isSolved());
+      const flat = lessonMoves(), next = flat[lesson.pos];
+      // While playing through, swing the camera to the next part's grip.
+      if (next && queue.length && next.part !== flat[item.lessonIndex].part) {
+        const fr = lesson.ex.parts[next.part].frame;
+        if (fr) flyToFrame(fr);
+      }
+      if (lesson.pos === flat.length) {
+        const s = LESSON[lesson.step];
+        setLessonStatus(s.done || 'Those are all the moves for this example.', !!s.done);
       }
       renderLesson();
     } else {
@@ -1153,6 +1159,9 @@ img { max-width: 100%; }
   // ---------- Lesson: the beginner's layer-by-layer method ----------
   // Each example is the step's moves played backwards from a solved cube,
   // so playing the moves forwards always finishes the cube.
+  // Steps with a `stage` teach one stage of the beginner's method. Their example is a fresh scramble
+  // with the earlier stages already done (by the hint solver), then this stage solved part by part.
+  // `demo` steps play a fixed sequence instead; `before` sets up a cube with that many stages done first.
   const LESSON = [
     {
       title: 'How the cube works',
@@ -1162,157 +1171,302 @@ img { max-width: 100%; }
         'Moves are written as letters: <code class="mv">U</code> top, <code class="mv">D</code> bottom, <code class="mv">F</code> front, <code class="mv">B</code> back, <code class="mv">R</code> right, <code class="mv">L</code> left. A letter alone means turn that face clockwise as if you were looking straight at it. <code class="mv">R\'</code> means counter-clockwise, and <code class="mv">R2</code> means a half turn.',
         'Press Play to watch four moves and their result.',
       ],
-      setup: '', alg: "R U R' U'",
+      demo: "R U R' U'",
     },
     {
       title: 'Make the white cross',
+      stage: 0,
+      done: 'The white cross is finished: a white plus on top, and each edge matches the center beside it.',
       body: [
-        'Keep white on top. The goal is a plus sign of white edges around the white center, where each edge\'s other color also matches the center beside it.',
-        'This step is mostly figured out by eye. A useful trick: find a white edge in the bottom layer and turn <code class="mv">D</code> until its side color sits under the matching center. Then turn that face twice to bring it up.',
-        'In the example, the white-green edge is on the bottom in the wrong spot. <code class="mv">D\'</code> lines it up under green, then <code class="mv">F2</code> lifts it into the cross.',
+        '<b>Goal:</b> a white plus sign on top, where each white edge\'s other color matches the center beside it (the white–green edge sits above the green center, and so on).',
+        'Hold white on top and place the four white edges one at a time:',
+        '<b>White edge in the bottom layer, white facing down:</b> turn <code class="mv">D</code> until its other color is under the matching center, then turn that face twice (for example <code class="mv">F2</code>).',
+        '<b>White edge anywhere else:</b> turn the face it\'s on to move it into the bottom layer, then place it as above. If that knocks out an edge you already placed, turn that face back afterwards.',
+        'There\'s no single formula for the cross. The example uses short solutions, so a part sometimes does more than one edge at once.',
       ],
-      setup: 'F2 D', alg: "D' F2",
     },
     {
       title: 'Finish the white layer',
+      stage: 1,
+      done: 'The white layer is finished: all of white is on top, and the top row of each side matches its center.',
       body: [
-        'Now place the four white corners. Find one in the bottom layer and turn <code class="mv">D</code> until it sits directly under the spot it belongs in, between the two centers that match its other colors.',
-        'Turn the whole cube so that spot is at the top front right. Then repeat <code class="mv">R\' D\' R D</code> until the corner drops in with white on top. It takes two, four or six repeats.',
-        'The rest of the cube looks messy in between. That is expected, and it settles once the corner is in.',
+        '<b>Goal:</b> the whole white face solved, with the top row on each side matching its center.',
+        'Keep white on top. Find a white corner in the bottom layer and turn <code class="mv">D</code> until it sits directly under its spot: the top corner between the centers of its other two colors.',
+        'Turn the whole cube so that spot is at the top front right. Repeat <code class="mv">R\' D\' R D</code> until the corner goes in with white on top. It takes 1, 3 or 5 repeats, depending on which way the white sticker faces.',
+        'If a white corner is in the top layer but in the wrong spot or twisted, hold it at the top front right and do <code class="mv">R\' D\' R D</code> once to drop it into the bottom layer. Then place it as above.',
+        'The bottom of the cube gets mixed up while you do this. That\'s expected.',
       ],
-      setup: "D' R' D R D' R' D R", alg: "R' D' R D R' D' R D",
     },
     {
       title: 'Turn the cube over',
+      before: 2,
+      demo: 'x2',
+      done: 'Yellow is on top now. Keep it there for the rest of the solve.',
       body: [
         'The white layer is done. Turn the cube upside down so yellow is on top and the solved layer is underneath. You can use the Flip upside down button on the Practice tab, or press V.',
         'Keep yellow on top for the rest of the lesson. The letters still follow your screen, so <code class="mv">U</code> now turns the yellow face.',
       ],
-      setup: '', alg: 'x2',
     },
     {
       title: 'Solve the middle layer',
+      stage: 2,
+      done: 'The middle layer is finished: the bottom two layers are solved.',
       body: [
-        'Look for a top-layer edge with no yellow on it. Turn <code class="mv">U</code> until its front color matches the front center, forming an upside-down T.',
-        'If its top color matches the right center, it goes right: <code class="mv">U R U\' R\' U\' F\' U F</code>. If it matches the left center, it goes left: <code class="mv">U\' L\' U L U F U\' F\'</code>.',
-        'If an edge is stuck in the middle layer the wrong way round, insert any top edge into its spot to pop it out, then place it again.',
+        '<b>Goal:</b> the four middle-layer edges in place, so the bottom two layers are solved.',
+        'With yellow on top, find a top-layer edge with no yellow on it. Turn <code class="mv">U</code> until its front color matches the center below it, making an upside-down T.',
+        'Now look at its top color. If it matches the right center, it goes right: <code class="mv">U R U\' R\' U\' F\' U F</code>. If it matches the left center, it goes left: <code class="mv">U\' L\' U L U F U\' F\'</code>.',
+        'If an edge is stuck in the middle layer in the wrong spot or flipped, put any yellow top edge into its spot with the same moves. That pops it out to the top so you can place it properly.',
       ],
-      setup: "x2 F' U' F U R U R' U'", alg: "U R U' R' U' F' U F",
     },
     {
       title: 'Make the yellow cross',
+      stage: 3,
+      done: 'The yellow cross is made. The corners and side colors don\'t matter yet.',
       body: [
-        'Ignore the corners and the side colors for now. Only the yellow stickers on top matter.',
-        'Use <code class="mv">F R U R\' U\' F\'</code>. If you see only the yellow dot, do it once to get an L shape. Hold the L at the back left and do it again to get a line. Hold the line left to right and do it once more for the cross.',
+        '<b>Goal:</b> a yellow plus sign on top. Ignore the corners and the side colors for now.',
+        'Look at the top edges and use <code class="mv">F R U R\' U\' F\'</code>:',
+        '<b>Only the yellow center (a dot):</b> do it once from any side to get an L shape.',
+        '<b>An L shape:</b> hold it at the back and left, like the hands of a clock at nine o\'clock, and do it once to get a line.',
+        '<b>A line:</b> hold it left to right and do it once more for the cross.',
       ],
-      setup: "x2 F U R U' R' F'", alg: "F R U R' U' F'",
     },
     {
       title: 'Line up the yellow edges',
+      stage: 4,
+      done: 'All four yellow edges match the centers beside them.',
       body: [
-        'Turn <code class="mv">U</code> until at least two yellow edges match the centers beside them.',
-        'If the two matching edges are next to each other, hold them at the back and right. If they are opposite each other, do the moves once from any side, then look again.',
-        'The moves are <code class="mv">R U R\' U R U2 R\' U</code>.',
+        '<b>Goal:</b> each yellow edge\'s side color matches the center below it.',
+        'Turn <code class="mv">U</code> until at least two edges match their centers.',
+        'If the two matching edges are next to each other, hold them at the back and right and do <code class="mv">R U R\' U R U2 R\' U</code>. That swaps the front and left edges.',
+        'If they are opposite each other, do the moves once from any side, turn <code class="mv">U</code> to find two matching edges next to each other, and do it again.',
       ],
-      setup: "x2 U' R U2 R' U' R U' R'", alg: "R U R' U R U2 R' U",
     },
     {
       title: 'Move the yellow corners home',
+      stage: 5,
+      done: 'Every yellow corner is in its home spot. Some may still be twisted: that\'s the last step.',
       body: [
-        'A corner is in the right place when it sits between the three centers of its colors, even if it is twisted.',
-        'Find one corner that is in the right place and hold it at the top front right. Do <code class="mv">U R U\' L\' U R\' U\' L</code> and check again. Repeat until all four are home. If none are, do the moves once from anywhere first.',
+        '<b>Goal:</b> each yellow corner in its home spot, between the three centers of its colors. Twisted is fine for now.',
+        'Find one corner that is already home and hold it at the top front right. Do <code class="mv">U R U\' L\' U R\' U\' L</code>. It moves the other three corners around and leaves that one where it is. Repeat until all four are home.',
+        'If no corner is home, do the moves once from anywhere, and one will be.',
       ],
-      setup: "x2 L' U R U' L U R' U'", alg: "U R U' L' U R' U' L",
     },
     {
       title: 'Twist the last corners',
+      stage: 6,
+      done: 'Solved! That\'s the whole beginner\'s method.',
       body: [
+        '<b>Goal:</b> twist each yellow corner so yellow faces up. Then the cube is solved.',
         'Hold the cube so a corner with yellow facing the wrong way is at the top front right. Repeat <code class="mv">R\' D\' R D</code> until its yellow faces up.',
         'Then turn only <code class="mv">U</code> to bring the next wrong corner to the top front right, and repeat. Never turn the whole cube during this step.',
-        'The bottom layers will look scrambled partway through. Keep going: they come back once the last corner is twisted.',
+        'The bottom layers look scrambled partway through. Keep going: they come back once the last corner is twisted. A final <code class="mv">U</code> lines the top up.',
       ],
-      setup: "x2 R' D' R D R' D' R D U R' D' R D R' D' R D R' D' R D R' D' R D U'",
-      alg: "U R' D' R D R' D' R D U' R' D' R D R' D' R D R' D' R D R' D' R D",
     },
     {
       title: 'Solve one on your own',
       body: [
-        'That is the whole beginner\'s method: white cross, white corners, flip, middle layer, yellow cross, yellow edges, yellow corners, then twist them.',
-        'Scramble the cube and work through the steps. Come back to this tab whenever you need a reminder. Most people get their first solve in under an hour, then bring it under two minutes with practice.',
+        'That\'s the whole beginner\'s method: white cross, white corners, flip, middle layer, yellow cross, yellow edges, yellow corners, then twist them.',
+        'Scramble the cube and work through the steps. Come back to this tab whenever you need a reminder, or press Hint on the Practice tab. Most people get their first solve in under an hour, then bring it under two minutes with practice.',
       ],
-      setup: null, alg: '',
     },
   ];
+  const EXAMPLE_NOTE = 'The example starts from a new scramble with the earlier steps already done. Press <b>Play</b> to watch this step solved part by part, or <b>Next move</b> to go one turn at a time. <b>New example</b> deals a different cube.';
 
-  const lesson = { step: 0, pos: 0, ready: false, frame: null, autoplay: false };
+  const lesson = { step: 0, ex: null, pos: 0, ready: false, autoplay: false };
   try { lesson.step = Math.min(LESSON.length - 1, Math.max(0, +localStorage.getItem('deskcube-step') || 0)); } catch (e) {}
 
-  function lessonMoves() { return LESSON[lesson.step].alg ? LESSON[lesson.step].alg.split(' ') : []; }
+  const hasExample = s => s.stage !== undefined || !!s.demo;
+  function lessonMoves() { return lesson.ex ? lesson.ex.flat : []; }
   function setLessonStatus(text, win) { $('lessonStatus').textContent = text; $('lessonStatus').classList.toggle('win', !!win); }
 
   function renderLesson() {
-    const s = LESSON[lesson.step], moves = lessonMoves();
+    const s = LESSON[lesson.step], ex = lesson.ex, has = hasExample(s);
     $('lessonCount').textContent = `Step ${lesson.step + 1} of ${LESSON.length}`;
     $('lessonJump').value = lesson.step;
     [...$('lessonProgress').children].forEach((el, i) => el.classList.toggle('on', i <= lesson.step));
     $('lessonTitle').textContent = s.title;
-    $('lessonBody').innerHTML = s.body.map(p => `<p>${p}</p>`).join('');
-    $('lessonAlgWrap').hidden = !moves.length;
-    $('lessonActions').hidden = !moves.length;
-    $('tryBtn').hidden = !!moves.length;
-    const alg = $('lessonAlg');
-    alg.innerHTML = '';
-    moves.forEach((m, i) => {
-      const chip = document.createElement('span');
-      chip.textContent = m;
-      if (lesson.ready && i < lesson.pos) chip.className = 'done';
-      else if (lesson.ready && i === lesson.pos) chip.className = 'next';
-      alg.appendChild(chip);
+    $('lessonBody').innerHTML = s.body.map(p => `<p>${p}</p>`).join('') + (s.stage !== undefined ? `<p class="lesson-note">${EXAMPLE_NOTE}</p>` : '');
+    $('lessonAlgWrap').hidden = !has;
+    $('lessonActions').hidden = !has;
+    $('tryBtn').hidden = has;
+    $('exampleBtn').textContent = ex ? 'New example' : 'Set up example';
+    const box = $('lessonAlg');
+    box.innerHTML = '';
+    if (has && !ex) {
+      const p = document.createElement('p');
+      p.className = 'lesson-empty';
+      p.textContent = 'Press Set up example (or Play) to put a cube at the start of this step.';
+      box.appendChild(p);
+    }
+    if (ex) ex.parts.forEach((part, pi) => {
+      const row = document.createElement('div');
+      row.className = 'hint-phase';
+      if (part.caption) {
+        const cap = document.createElement('div');
+        cap.className = 'part-cap';
+        cap.textContent = (ex.parts.length > 1 ? `${pi + 1}. ` : '') + part.caption;
+        row.appendChild(cap);
+      }
+      if (part.grip) {
+        const grip = document.createElement('div');
+        grip.className = 'v-cap';
+        grip.textContent = part.grip;
+        row.appendChild(grip);
+      }
+      const alg = document.createElement('div');
+      alg.className = 'alg';
+      for (const m of part.moves) {
+        const chip = document.createElement('span');
+        chip.textContent = m.label;
+        alg.appendChild(chip);
+      }
+      row.appendChild(alg);
+      box.appendChild(row);
+    });
+    box.querySelectorAll('.alg span').forEach((chip, i) => {
+      chip.className = lesson.ready && i < lesson.pos ? 'done' : lesson.ready && i === lesson.pos ? 'next' : '';
     });
     $('prevStep').disabled = lesson.step === 0;
     $('nextStep').disabled = lesson.step === LESSON.length - 1;
   }
 
+  // Turn a layer instantly, without animating (sets up lesson examples).
+  function turnNow(m) {
+    queue.unshift({ axis: m.axis, layer: m.layer, angle: m.angle, quiet: true });
+    startNext();
+    finishAnim();
+  }
+  function randomTurns(n) {
+    const out = [];
+    while (out.length < n) {
+      const m = FACE_MOVES[Math.floor(Math.random() * FACE_MOVES.length)];
+      if (!out.length || out[out.length - 1].axis !== m.axis) out.push(m);
+    }
+    return out;
+  }
+  const stageNow = st => stageOf(stageCounts(st, layout(st)));
+  function yellowShape(st, L) {
+    const yc = centerColor(st, L.y);
+    const up = L.yEdges.filter(c => st[slotOf(c, L.y)] === yc).map(c => c.map((n, i) => n - L.y[i]));
+    if (up.length === 4) return 'cross';
+    if (!up.length) return 'dot';
+    if (up.length === 2) return up[0][0] * up[1][0] + up[0][1] * up[1][1] + up[0][2] * up[1][2] === 0 ? 'L shape' : 'line';
+    return `${up.length} edges`;
+  }
+  // Words for one part of a worked example: what it does, and how to hold the cube.
+  function describePart(stage, before, after, part, h, targets, pi) {
+    const L = h.L, last = pi === h.phases.length - 1, t = targets[0];
+    const top = cname(centerColor(before, part.frame.up)), front = cname(centerColor(before, part.frame.front));
+    let grip = `Hold ${top} on top, ${front} in front`;
+    const names = targets.map(x => pieceName(before, x.home)).join(' and ');
+    const plural = targets.length > 1 ? 's' : '';
+    const isU = m => m.label[0] === 'U';
+    let caption = '';
+    if (stage === 0) caption = t ? `Place the ${names} edge${plural}` + (pi === 0 ? ` (starts in the ${layerName(t.now, L.w)})` : '') : 'Set up the next edge';
+    else if (stage === 1) caption = !t ? 'Set up the next corner'
+      : last ? `Put the ${names} corner in` + (pi === 0 ? ` (starts in the ${layerName(t.now, L.w)})` : '')
+      : `First, drop the ${names} corner out of the top layer`;
+    else if (stage === 2) caption = !t ? 'Set up the next edge'
+      : last ? `Put the ${names} edge into the middle layer`
+      : 'First, pop the wrong edge out of the middle layer';
+    else if (stage === 3) caption = `Yellow on top: ${yellowShape(before, L)} → ${yellowShape(after, L)}`;
+    else if (stage === 4) caption = part.moves.length === 1 ? 'Turn the top layer to line the edges up' : 'Swap the front and left top edges';
+    else if (stage === 5) {
+      const home = stageCounts(after, L)[5];
+      caption = stageCounts(before, L)[5] === 0
+        ? `No corner is home yet, so do the moves once from any side (${home} of 4 home after)`
+        : `Keep the front-right corner, move the other three (${home} of 4 home after)`;
+    }
+    else {
+      const twists = part.moves.filter(m => !isU(m)).length / 4;
+      grip = `Same grip the whole step: ${top} on top, ${front} in front`;
+      caption = !twists ? 'Turn the top layer to line everything up'
+        : (isU(part.moves[0]) ? 'Turn U to bring the next corner to the front right, then twist it' : 'Twist the front-right corner')
+          + ` (R' D' R D × ${twists})`;
+    }
+    return { caption, grip };
+  }
+
+  function makeExample(s, fr) {
+    const demoMoves = () => s.demo.split(' ').map(l => ({ label: l, ...decode(l, fr) }));
+    const finish = (setup, parts) => ({ setup, parts, flat: parts.flatMap((p, pi) => p.moves.map(m => ({ ...m, part: pi }))) });
+    if (s.stage === undefined && !s.before) return finish([], [{ frame: null, moves: demoMoves() }]);
+    const solved = readState(), target = s.stage !== undefined ? s.stage : s.before;
+    for (let tries = 0; tries < 12; tries++) {
+      const setup = randomTurns(25);
+      let st = applyMoves(solved, setup), ok = true;
+      // Do the earlier steps quietly.
+      for (let guard = 0; ok && stageNow(st) < target; guard++) {
+        const h = findHint(st);
+        if (!h.phases || guard > 40) { ok = false; break; }
+        const mv = h.phases.flatMap(p => p.moves);
+        setup.push(...mv);
+        st = applyMoves(st, mv);
+      }
+      // Try another scramble if that failed, or if this step happened to finish itself.
+      if (!ok || stageNow(st) !== target) continue;
+      if (s.stage === undefined) return finish(setup, [{ frame: null, moves: demoMoves() }]);
+      const parts = [];
+      for (let guard = 0; ok && stageNow(st) === target; guard++) {
+        const h = findHint(st);
+        if (!h.phases || guard > 40) { ok = false; break; }
+        const targets = hintTargets(st, h);
+        h.phases.forEach((p, pi) => {
+          const before = st;
+          st = applyMoves(st, p.moves);
+          parts.push({ frame: p.frame, moves: p.moves, ...describePart(target, before, st, p, h, targets, pi) });
+        });
+      }
+      if (ok && parts.length) return finish(setup, parts);
+    }
+    return null;
+  }
+
   function setUpExample(autoplay) {
+    const s = LESSON[lesson.step];
+    if (!hasExample(s)) return false;
     if (anim) finishAnim();
     queue = [];
     buildCube();
     placeCamera();
-    Object.assign(state, { mode: 'idle', moves: 0, history: [] });
+    Object.assign(state, { mode: 'idle', moves: 0, history: [], scrambling: false, scrambleText: '' });
     renderTime(0);
-    setStatus('Lesson example on the cube.');
-    lesson.frame = viewFrame();
-    lesson.pos = 0;
-    lesson.ready = false;
-    lesson.autoplay = autoplay;
-    const setup = LESSON[lesson.step].setup;
-    if (setup) {
-      state.scrambling = true;
-      for (const m of setup.split(' ')) enqueueLabel(m, { setup: true, fast: true }, lesson.frame);
-      setLessonStatus('Setting up the example…');
-    } else {
-      lesson.ready = true;
-      setLessonStatus('Example ready. Press Play, or Next move to go one turn at a time.');
+    const ex = makeExample(s, viewFrame());
+    lesson.ex = ex; lesson.pos = 0; lesson.autoplay = autoplay;
+    lesson.ready = !!ex;
+    if (!ex) {
+      setLessonStatus('Couldn\'t build an example just now. Press Set up example to try again.');
+      renderLesson();
+      return false;
     }
+    for (const m of ex.setup) turnNow(m);
+    if (ex.parts[0].frame) flyToFrame(ex.parts[0].frame);
+    setStatus('Lesson example on the cube.');
+    setLessonStatus(autoplay ? 'Playing the moves…' : 'Example ready. Press Play, or Next move to go one turn at a time.');
     renderLesson();
     renderPanel();
+    renderStages();
+    return true;
   }
 
   function playLesson(all) {
-    const moves = lessonMoves();
     if (anim || queue.length) return;
-    if (!lesson.ready || lesson.pos >= moves.length) {
-      setUpExample(all);
-      if (!all) return;
+    if (!lesson.ready || lesson.pos >= lessonMoves().length) {
+      if (!setUpExample(all) || !all) return;
     }
-    const pending = queue.some(q => q.setup);
-    const end = all ? moves.length : lesson.pos + 1;
-    for (let i = pending ? 0 : lesson.pos; i < end; i++) enqueueLabel(moves[i], { lessonIndex: i }, lesson.frame);
-    if (all && !pending) setLessonStatus('Playing the moves…');
+    const flat = lessonMoves(), end = all ? flat.length : lesson.pos + 1;
+    const first = flat[lesson.pos], part = lesson.ex.parts[first.part];
+    if (part.frame && (lesson.pos === 0 || flat[lesson.pos - 1].part !== first.part)) flyToFrame(part.frame);
+    for (let i = lesson.pos; i < end; i++) {
+      const m = flat[i];
+      enqueue({ label: m.label, axis: m.axis, layer: m.layer, angle: m.angle, lessonIndex: i });
+    }
+    if (all) setLessonStatus('Playing the moves…');
   }
 
   function goToStep(i) {
     lesson.step = Math.max(0, Math.min(LESSON.length - 1, i));
+    lesson.ex = null;
     lesson.ready = false;
     lesson.pos = 0;
     try { localStorage.setItem('deskcube-step', lesson.step); } catch (e) {}
