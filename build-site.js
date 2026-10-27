@@ -1,6 +1,7 @@
 // Builds the public website (docs/index.html) from index.html.
 // index.html is written without <html>/<head> tags because the Claude artifact adds them;
 // a standalone website needs them, so this wraps the page in the same skeleton.
+// The color-scheme meta tells browsers the page has its own dark theme, so "force dark" features leave it alone.
 // Run: node build-site.js
 const fs = require('fs');
 const path = require('path');
@@ -11,8 +12,9 @@ const head = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <style>
-:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 img { max-width: 100%; }
 [hidden] { display: none !important; }

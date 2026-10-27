@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <style>
-:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 img { max-width: 100%; }
 [hidden] { display: none !important; }
@@ -33,6 +34,7 @@ img { max-width: 100%; }
     --cube-body: #27313a;
     --scrim: rgba(15, 21, 26, 0.45);
     --danger: #c62828;
+    color-scheme: light;
     --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
     --font-body: "Figtree", "Segoe UI", system-ui, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
@@ -151,6 +153,20 @@ img { max-width: 100%; }
   .confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
   .confirm-actions button { padding: 8px 16px; }
   button.danger { background: #c62828; color: #fff; border-color: #c62828; }
+
+  /* Light / dark switch in the header. */
+  .theme-switch { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; }
+  .ts-track {
+    position: relative; flex: none; width: 36px; height: 20px; border-radius: 10px;
+    background: var(--line); transition: background 0.2s;
+  }
+  .ts-knob {
+    position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: transform 0.2s;
+  }
+  .theme-switch[aria-checked="true"] .ts-track { background: var(--accent); }
+  .theme-switch[aria-checked="true"] .ts-knob { transform: translateX(16px); }
+  @media (prefers-reduced-motion: reduce) { .ts-track, .ts-knob { transition: none; } }
 
   /* Account: header button and the sign-in / account dialog. */
   .acct-btn { display: inline-flex; align-items: center; gap: 8px; max-width: 200px; }
@@ -413,6 +429,10 @@ img { max-width: 100%; }
       </div>
       <button class="learn-btn" id="keysBtn" aria-controls="keysPanel" title="Show or hide the controls (?)">Controls</button>
       <button class="learn-btn learn-only" id="learnBtn">Learn to solve</button>
+      <button class="theme-switch" id="themeBtn" role="switch" aria-checked="false" title="Switch between light and dark">
+        <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
+        <span>Dark</span>
+      </button>
       <button class="learn-btn acct-btn" id="accountBtn" hidden>Sign in</button>
     </div>
   </header>
@@ -516,7 +536,7 @@ img { max-width: 100%; }
         <label>Display name<input name="name" id="acctName" maxlength="40" autocomplete="nickname"></label>
         <button type="submit">Save</button>
       </form>
-      <p class="acct-note">Your mode, keyboard layout and zoom are saved to your account too.</p>
+      <p class="acct-note">Your mode, keyboard layout, zoom and light/dark choice are saved to your account too.</p>
       <div class="confirm-actions acct-split">
         <button type="button" class="link danger-link" data-go="delete">Delete my account</button>
         <button type="button" id="acctSignOut">Sign out</button>
@@ -2002,6 +2022,29 @@ img { max-width: 100%; }
     userMove(e.shiftKey ? base + "'" : base);
   });
 
+  // ---------- Light / dark ----------
+  // With no choice saved the page follows the system (or the Claude viewer's own theme setting).
+  const darkMQ = window.matchMedia('(prefers-color-scheme: dark)');
+  let themeChoice = null;
+  try { const t = localStorage.getItem('deskcube-theme'); if (t === 'light' || t === 'dark') themeChoice = t; } catch (e) {}
+  function isDark() {
+    const set = document.documentElement.dataset.theme;
+    return set === 'dark' || set === 'light' ? set === 'dark' : darkMQ.matches;
+  }
+  function renderTheme() {
+    if (themeChoice) document.documentElement.dataset.theme = themeChoice;
+    $('themeBtn').setAttribute('aria-checked', isDark());
+  }
+  function setTheme(t) {
+    themeChoice = t;
+    try { localStorage.setItem('deskcube-theme', t); } catch (e) {}
+    renderTheme();
+    accountSettingsChanged();
+  }
+  $('themeBtn').addEventListener('click', () => setTheme(isDark() ? 'light' : 'dark'));
+  darkMQ.addEventListener('change', renderTheme);
+  renderTheme();
+
   // ---------- Accounts (Supabase) ----------
   // Signed-in people get their solves and settings saved to the Desk Cube database.
   // The publishable key is meant to be public: the Row Level Security rules in supabase-setup.sql
@@ -2085,13 +2128,14 @@ img { max-width: 100%; }
   }
 
   function currentSettings() {
-    return { mode: isSpeed() ? 'speed' : 'learn', layout: keyLayout, zoom: Math.round(view.zoom * 100) / 100 };
+    return { mode: isSpeed() ? 'speed' : 'learn', layout: keyLayout, zoom: Math.round(view.zoom * 100) / 100, theme: themeChoice };
   }
   function applySettings(s) {
     acct.applying = true;
     if (s.mode === 'speed' || s.mode === 'learn') setMode(s.mode);
     if (s.layout === 'speed' || s.layout === 'letters') setLayout(s.layout);
     if (typeof s.zoom === 'number') setZoom(s.zoom);
+    if (s.theme === 'light' || s.theme === 'dark') setTheme(s.theme);
     acct.applying = false;
   }
   function accountSettingsChanged() {
