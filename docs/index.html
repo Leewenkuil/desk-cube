@@ -32,6 +32,7 @@ img { max-width: 100%; }
     --sticker-dim: #dde4e9;
     --cube-body: #27313a;
     --scrim: rgba(15, 21, 26, 0.45);
+    --danger: #c62828;
     --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
     --font-body: "Figtree", "Segoe UI", system-ui, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
@@ -41,7 +42,7 @@ img { max-width: 100%; }
       --bg: #0f151a; --surface: #151d23; --mat: #1a242b; --mat-edge: #0d1317;
       --fg: #e5ecf1; --muted: #8a99a4; --line: #25313a;
       --accent: #ff8a3d; --accent-ink: #1a0d04; --good: #4cc97f;
-      --sticker-dim: #2b3741; --cube-body: #080b0d; --scrim: rgba(0, 0, 0, 0.55);
+      --sticker-dim: #2b3741; --cube-body: #080b0d; --scrim: rgba(0, 0, 0, 0.55); --danger: #ff6b6b;
       color-scheme: dark;
     }
   }
@@ -49,7 +50,7 @@ img { max-width: 100%; }
     --bg: #0f151a; --surface: #151d23; --mat: #1a242b; --mat-edge: #0d1317;
     --fg: #e5ecf1; --muted: #8a99a4; --line: #25313a;
     --accent: #ff8a3d; --accent-ink: #1a0d04; --good: #4cc97f;
-    --sticker-dim: #2b3741; --cube-body: #080b0d; --scrim: rgba(0, 0, 0, 0.55);
+    --sticker-dim: #2b3741; --cube-body: #080b0d; --scrim: rgba(0, 0, 0, 0.55); --danger: #ff6b6b;
     color-scheme: dark;
   }
 
@@ -150,6 +151,47 @@ img { max-width: 100%; }
   .confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
   .confirm-actions button { padding: 8px 16px; }
   button.danger { background: #c62828; color: #fff; border-color: #c62828; }
+
+  /* Account: header button and the sign-in / account dialog. */
+  .acct-btn { display: inline-flex; align-items: center; gap: 8px; max-width: 200px; }
+  .acct-initial {
+    flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-ink); font-size: 0.75rem; font-weight: 700;
+  }
+  .acct-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  dialog.acct { width: min(400px, calc(100vw - 32px)); }
+  .acct-close {
+    position: absolute; top: 8px; right: 8px; border: 0; background: transparent; color: var(--muted);
+    font-size: 1.4rem; line-height: 1; padding: 4px 9px; cursor: pointer;
+  }
+  .acct form, .acct [data-view] { display: flex; flex-direction: column; gap: 12px; }
+  dialog.acct h3 { margin: 0; padding-right: 28px; }
+  dialog.acct p { margin: 0; }
+  .acct label { display: flex; flex-direction: column; gap: 5px; font-size: 0.85rem; font-weight: 500; color: var(--muted); }
+  .acct .opt { font-weight: 400; }
+  .acct input {
+    font: inherit; font-size: 0.95rem; color: var(--fg); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; min-width: 0;
+  }
+  .acct input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .acct-links { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  button.link {
+    border: 0; background: none; padding: 0; font: inherit; font-size: 0.85rem; cursor: pointer;
+    color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
+  }
+  button.link.danger-link { color: var(--danger); }
+  .acct .acct-row { flex-direction: row; align-items: flex-end; gap: 8px; }
+  .acct-row label { flex: 1; min-width: 0; }
+  .acct-row button { padding: 9px 14px; }
+  .acct-email { font-weight: 600; overflow-wrap: anywhere; }
+  dialog.acct .acct-stats, dialog.acct .acct-note { color: var(--muted); font-size: 0.88rem; }
+  .acct-import { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--bg); gap: 10px; display: flex; flex-direction: column; }
+  dialog.acct .acct-import p { font-size: 0.9rem; color: var(--fg); }
+  .acct-split { justify-content: space-between; align-items: center; }
+  dialog.acct .acct-msg { margin-top: 12px; font-size: 0.88rem; color: var(--muted); }
+  dialog.acct .acct-msg:empty { display: none; }
+  dialog.acct .acct-msg.bad { color: var(--danger); }
+  dialog.acct .acct-msg.good { color: var(--good); }
   button.wide { grid-column: span 2; }
 
   h2 { margin: 0 0 10px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
@@ -349,6 +391,7 @@ img { max-width: 100%; }
       </div>
       <button class="learn-btn" id="keysBtn" aria-controls="keysPanel" title="Show or hide the controls (?)">Controls</button>
       <button class="learn-btn learn-only" id="learnBtn">Learn to solve</button>
+      <button class="learn-btn acct-btn" id="accountBtn" hidden>Sign in</button>
     </div>
   </header>
 
@@ -396,6 +439,71 @@ img { max-width: 100%; }
         <button value="ok" class="danger">Reset</button>
       </div>
     </form>
+  </dialog>
+  <dialog class="confirm acct" id="accountDialog" aria-label="Account">
+    <button type="button" class="acct-close" id="acctClose" aria-label="Close">×</button>
+    <form data-view="signin" id="formSignin">
+      <h3>Sign in</h3>
+      <p>Save your solves and settings to your account and see them on any computer.</p>
+      <label>Email<input name="email" type="email" autocomplete="email" required></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary" type="submit">Sign in</button>
+      <div class="acct-links">
+        <button type="button" class="link" data-go="signup">Create an account</button>
+        <button type="button" class="link" data-go="forgot">Forgot password?</button>
+      </div>
+    </form>
+    <form data-view="signup" id="formSignup" hidden>
+      <h3>Create an account</h3>
+      <p>Free. Your times are private to you.</p>
+      <label><span>Display name <span class="opt">(optional)</span></span><input name="name" maxlength="40" autocomplete="nickname"></label>
+      <label>Email<input name="email" type="email" autocomplete="email" required></label>
+      <label><span>Password <span class="opt">(at least 8 characters)</span></span><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+      <button class="primary" type="submit">Create account</button>
+      <div class="acct-links"><button type="button" class="link" data-go="signin">I already have an account</button></div>
+    </form>
+    <form data-view="forgot" id="formForgot" hidden>
+      <h3>Reset your password</h3>
+      <p>We'll email you a link to choose a new password.</p>
+      <label>Email<input name="email" type="email" autocomplete="email" required></label>
+      <button class="primary" type="submit">Send reset link</button>
+      <div class="acct-links"><button type="button" class="link" data-go="signin">Back to sign in</button></div>
+    </form>
+    <form data-view="newpass" id="formNewpass" hidden>
+      <h3>Choose a new password</h3>
+      <label><span>New password <span class="opt">(at least 8 characters)</span></span><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+      <button class="primary" type="submit">Save password</button>
+    </form>
+    <div data-view="account" hidden>
+      <h3>Your account</h3>
+      <p class="acct-email" id="acctEmail"></p>
+      <p class="acct-stats" id="acctStats"></p>
+      <div class="acct-import" id="acctImport" hidden>
+        <p id="acctImportText"></p>
+        <div class="confirm-actions">
+          <button type="button" id="acctImportSkip">No thanks</button>
+          <button type="button" class="primary" id="acctImportBtn">Add it to my account</button>
+        </div>
+      </div>
+      <form id="formName" class="acct-row">
+        <label>Display name<input name="name" id="acctName" maxlength="40" autocomplete="nickname"></label>
+        <button type="submit">Save</button>
+      </form>
+      <p class="acct-note">Your mode, keyboard layout and zoom are saved to your account too.</p>
+      <div class="confirm-actions acct-split">
+        <button type="button" class="link danger-link" data-go="delete">Delete my account</button>
+        <button type="button" id="acctSignOut">Sign out</button>
+      </div>
+    </div>
+    <div data-view="delete" hidden>
+      <h3>Delete your account?</h3>
+      <p>This deletes your account and all your saved solves for good. It can't be undone.</p>
+      <div class="confirm-actions">
+        <button type="button" data-go="account">Cancel</button>
+        <button type="button" class="danger" id="acctDeleteBtn">Delete for good</button>
+      </div>
+    </div>
+    <p class="acct-msg" id="acctMsg" role="status" aria-live="polite"></p>
   </dialog>
   <div class="kp-backdrop" id="keysBackdrop" hidden></div>
   <button class="keys-tab" id="keysTab" aria-controls="keysPanel" title="Show the controls (?)">Controls</button>
@@ -513,6 +621,7 @@ img { max-width: 100%; }
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
 <script>
 (() => {
   const stage = document.getElementById('stage');
@@ -543,6 +652,7 @@ img { max-width: 100%; }
     const lvl = document.getElementById('zoomLevel');
     if (lvl) lvl.textContent = Math.round(100 / view.zoom) + '%';
     try { localStorage.setItem('deskcube-zoom', String(view.zoom)); } catch (err) {}
+    accountSettingsChanged();
   }
   function placeCamera() {
     // Corner-on view: 45° around, looking straight down the top-front-right corner.
@@ -785,6 +895,8 @@ img { max-width: 100%; }
     if (saved.solves) state.solves = saved.solves;
   } catch (e) {}
   function save() {
+    // Signed in, best and solves come from the account; this browser keeps its own signed-out record.
+    if (acct && acct.user) return;
     try { localStorage.setItem('deskcube', JSON.stringify({ best: state.best, solves: state.solves })); } catch (e) {}
   }
 
@@ -869,6 +981,7 @@ img { max-width: 100%; }
       if (pb) state.best = t;
       save();
       setStatus(`Solved in ${fmt(t)} with ${state.moves} moves.${pb ? ' New best!' : ''}`, true);
+      accountOnSolve(t);
     }
     renderPanel();
   }
@@ -901,6 +1014,7 @@ img { max-width: 100%; }
     renderTime(0);
     setStatus('Scrambling…');
     renderSeq($('scrambleSeq'), seq, 'None yet');
+    state.scrambleText = seq.join(' ');
     for (const m of seq) enqueueLabel(m, { scramble: true, fast: true });
     renderPanel();
   }
@@ -909,7 +1023,7 @@ img { max-width: 100%; }
     if (anim) finishAnim();
     queue = [];
     buildCube();
-    Object.assign(state, { mode: 'idle', moves: 0, history: [], scrambling: false });
+    Object.assign(state, { mode: 'idle', moves: 0, history: [], scrambling: false, scrambleText: '' });
     lesson.ready = false;
     renderTime(0);
     setStatus('Solved cube. Press Scramble to start a timed solve.');
@@ -1299,6 +1413,7 @@ img { max-width: 100%; }
     keyLayout = l;
     renderKeyLabels();
     try { localStorage.setItem('deskcube-layout', l); } catch (e) {}
+    accountSettingsChanged();
   }
   $('layoutLetters').addEventListener('click', () => setLayout('letters'));
   $('layoutSpeed').addEventListener('click', () => setLayout('speed'));
@@ -1789,6 +1904,7 @@ img { max-width: 100%; }
       renderHint();
     }
     try { localStorage.setItem('deskcube-mode', speed ? 'speed' : 'learn'); } catch (e) {}
+    accountSettingsChanged();
   }
   $('modeLearn').addEventListener('click', () => setMode('learn'));
   $('modeSpeed').addEventListener('click', () => setMode('speed'));
@@ -1834,7 +1950,7 @@ img { max-width: 100%; }
 
   window.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select')) return;
-    if (resetDialog.open) return;
+    if (document.querySelector('dialog[open]')) return;
     if (e.key === '?') { e.preventDefault(); toggleKeys(); return; }
     if (keyLayout !== 'speed' && (e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); showTab('practice'); getHint(); return; }
     if (e.key === 'Escape' && !$('keysPanel').hidden && overlayMQ.matches) { setKeysOpen(false, false); return; }
@@ -1862,6 +1978,287 @@ img { max-width: 100%; }
     e.preventDefault();
     userMove(e.shiftKey ? base + "'" : base);
   });
+
+  // ---------- Accounts (Supabase) ----------
+  // Signed-in people get their solves and settings saved to the Desk Cube database.
+  // The publishable key is meant to be public: the Row Level Security rules in supabase-setup.sql
+  // let each person reach only their own rows. The Claude preview blocks outside connections, so accounts stay off there.
+  var acct = null;
+  const SUPABASE_URL = 'https://ohjklshiotdkbdjhefws.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_5V1VxxK0RswmAbg9YpOdAA_glNQPc4E';
+  const accountsOn = !!(window.supabase && window.supabase.createClient)
+    && /^https?:$/.test(location.protocol) && !/claude/i.test(location.hostname);
+  const acctDialog = $('accountDialog');
+  const siteUrl = location.origin + location.pathname;
+
+  function acctMsg(text, kind) {
+    const el = $('acctMsg');
+    el.textContent = text || '';
+    el.className = 'acct-msg' + (kind ? ' ' + kind : '');
+  }
+  function showAcctView(name) {
+    for (const v of acctDialog.querySelectorAll('[data-view]')) v.hidden = v.dataset.view !== name;
+    acctMsg('');
+    if (name === 'account') renderAccount();
+    const first = acctDialog.querySelector(`[data-view="${name}"] input`);
+    if (first && name !== 'account') setTimeout(() => first.focus(), 0);
+  }
+  function openAccount(view) {
+    showAcctView(view || (acct.user ? 'account' : 'signin'));
+    if (!acctDialog.open) acctDialog.showModal();
+  }
+  function busy(form, on) { for (const b of form.querySelectorAll('button')) b.disabled = on; }
+  function friendly(err) {
+    const m = (err && err.message) || 'Something went wrong. Please try again.';
+    if (/invalid login credentials/i.test(m)) return 'That email and password don’t match an account.';
+    if (/email not confirmed/i.test(m)) return 'Please confirm your email first: open the link we sent you.';
+    if (/already registered/i.test(m)) return 'There is already an account with that email. Try signing in.';
+    if (/rate limit/i.test(m)) return 'Too many emails were sent just now. Please wait a while and try again.';
+    if (/failed to fetch|network/i.test(m)) return 'Could not reach the server. Check your internet connection.';
+    return m;
+  }
+  function localStats() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('deskcube') || '{}');
+      return { best: saved.best || null, solves: saved.solves || 0 };
+    } catch (e) { return { best: null, solves: 0 }; }
+  }
+  const remoteBest = () => acct.remote.length ? Math.min(...acct.remote.map(s => s.time_ms)) : null;
+  function displayName() {
+    const p = acct.profile, u = acct.user, meta = u.user_metadata || {};
+    return (p && p.display_name) || meta.display_name || (u.email || '').split('@')[0] || 'Account';
+  }
+
+  function renderAccountBtn() {
+    const b = $('accountBtn');
+    b.textContent = '';
+    if (acct.user) {
+      const i = document.createElement('span'), n = document.createElement('span');
+      i.className = 'acct-initial'; n.className = 'acct-name';
+      n.textContent = displayName();
+      i.textContent = n.textContent[0].toUpperCase();
+      b.append(i, n);
+      b.title = 'Your account';
+    } else {
+      b.textContent = 'Sign in';
+      b.title = 'Sign in to save your solves and settings';
+    }
+  }
+  function renderAccount() {
+    if (!acct || !acct.user) return;
+    $('acctEmail').textContent = acct.user.email || '';
+    $('acctName').value = (acct.profile && acct.profile.display_name) || '';
+    const n = acct.remote.length, best = remoteBest();
+    $('acctStats').textContent = !acct.loaded ? 'Loading your saved solves…'
+      : n ? `${n} saved solve${n === 1 ? '' : 's'} · best ${fmt(best)}`
+      : 'No saved solves yet. Scramble and solve to save your first one.';
+    // Offer to bring over the best time this browser recorded before signing in.
+    const local = localStats(), key = 'deskcube-imported-' + acct.user.id;
+    let done = false;
+    try { done = localStorage.getItem(key) === '1'; } catch (e) {}
+    const offer = acct.loaded && !done && local.best && (best === null || local.best < best);
+    $('acctImport').hidden = !offer;
+    if (offer) $('acctImportText').textContent = `This browser has a best time of ${fmt(local.best)} from before you signed in. Add it to your account?`;
+  }
+
+  function currentSettings() {
+    return { mode: isSpeed() ? 'speed' : 'learn', layout: keyLayout, zoom: Math.round(view.zoom * 100) / 100 };
+  }
+  function applySettings(s) {
+    acct.applying = true;
+    if (s.mode === 'speed' || s.mode === 'learn') setMode(s.mode);
+    if (s.layout === 'speed' || s.layout === 'letters') setLayout(s.layout);
+    if (typeof s.zoom === 'number') setZoom(s.zoom);
+    acct.applying = false;
+  }
+  function accountSettingsChanged() {
+    if (!acct || !acct.user || !acct.loaded || acct.applying) return;
+    clearTimeout(acct.saveTimer);
+    acct.saveTimer = setTimeout(() => {
+      acct.sb.from('profiles').update({ settings: currentSettings(), updated_at: new Date().toISOString() })
+        .eq('id', acct.user.id).then(() => {});
+    }, 1200);
+  }
+
+  function useAccountStats() {
+    state.best = remoteBest();
+    state.solves = acct.remote.length;
+    renderPanel();
+  }
+  async function loadAccount() {
+    const sb = acct.sb, uid = acct.user.id;
+    acct.loaded = false;
+    const [solvesRes, profRes] = await Promise.all([
+      sb.from('solves').select('time_ms, solved_at').order('solved_at', { ascending: false }),
+      sb.from('profiles').select('display_name, settings').eq('id', uid).maybeSingle(),
+    ]);
+    if (!acct.user || acct.user.id !== uid) return;
+    if (solvesRes.error || profRes.error) {
+      setStatus('Signed in, but your saved solves could not be loaded. Try reloading the page.');
+      return;
+    }
+    acct.remote = solvesRes.data || [];
+    acct.profile = profRes.data;
+    if (!acct.profile) {
+      // First sign-in: create the profile from the sign-up name and this browser's settings.
+      const meta = acct.user.user_metadata || {};
+      acct.profile = { display_name: meta.display_name || null, settings: currentSettings() };
+      await sb.from('profiles').upsert({ id: uid, ...acct.profile, updated_at: new Date().toISOString() });
+    } else {
+      applySettings(acct.profile.settings || {});
+    }
+    acct.loaded = true;
+    useAccountStats();
+    renderAccountBtn();
+    if (acctDialog.open) renderAccount();
+  }
+  function signedOut() {
+    acct.remote = []; acct.profile = null; acct.loaded = false;
+    const local = localStats();
+    state.best = local.best; state.solves = local.solves;
+    renderPanel();
+  }
+  async function onAuth(event, session) {
+    const user = session ? session.user : null;
+    const same = (user && user.id) === (acct.user && acct.user.id);
+    acct.user = user;
+    if (event === 'PASSWORD_RECOVERY') { renderAccountBtn(); openAccount('newpass'); if (!same && user) loadAccount(); return; }
+    renderAccountBtn();
+    if (same) return;
+    if (user) { acct.loaded = false; if (acctDialog.open) renderAccount(); await loadAccount(); } else signedOut();
+  }
+
+  function accountOnSolve(t) {
+    if (!acct || !acct.user) return;
+    const row = { time_ms: Math.max(1, Math.round(t)), moves: state.moves, scramble: state.scrambleText || null };
+    acct.sb.from('solves').insert(row).then(({ error }) => {
+      if (error) { statusEl.textContent += ' It could not be saved to your account.'; return; }
+      acct.remote.unshift({ time_ms: row.time_ms, solved_at: new Date().toISOString() });
+      statusEl.textContent += ' Saved to your account.';
+    });
+  }
+
+  if (accountsOn) {
+    acct = {
+      sb: window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY),
+      user: null, profile: null, remote: [], loaded: false, applying: false, saveTimer: 0,
+    };
+    $('accountBtn').hidden = false;
+    renderAccountBtn();
+    // Supabase asks not to call it again from inside this callback, so the work runs just after.
+    acct.sb.auth.onAuthStateChange((event, session) => { setTimeout(() => onAuth(event, session), 0); });
+
+    $('accountBtn').addEventListener('click', () => openAccount());
+    $('acctClose').addEventListener('click', () => acctDialog.close());
+    acctDialog.addEventListener('click', e => {
+      const go = e.target.closest('[data-go]');
+      if (go) showAcctView(go.dataset.go);
+    });
+
+    $('formSignin').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = e.currentTarget;
+      busy(f, true); acctMsg('Signing in…');
+      const { error } = await acct.sb.auth.signInWithPassword({ email: f.elements.email.value.trim(), password: f.elements.password.value });
+      busy(f, false);
+      if (error) { acctMsg(friendly(error), 'bad'); return; }
+      f.reset();
+      showAcctView('account');
+    });
+
+    $('formSignup').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = e.currentTarget, email = f.elements.email.value.trim();
+      const name = f.elements.name.value.trim().slice(0, 40);
+      busy(f, true); acctMsg('Creating your account…');
+      const { data, error } = await acct.sb.auth.signUp({
+        email, password: f.elements.password.value,
+        options: { emailRedirectTo: siteUrl, data: { display_name: name || null } },
+      });
+      busy(f, false);
+      if (error) { acctMsg(friendly(error), 'bad'); return; }
+      // An existing email comes back as a user with no identities (Supabase hides which emails exist).
+      if (data.user && data.user.identities && !data.user.identities.length) {
+        acctMsg('There is already an account with that email. Try signing in.', 'bad');
+        return;
+      }
+      f.reset();
+      if (data.session) { showAcctView('account'); return; }
+      showAcctView('signin');
+      acctMsg(`Almost done: we sent a confirmation link to ${email}. Open it, then you're signed in.`, 'good');
+    });
+
+    $('formForgot').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = e.currentTarget;
+      busy(f, true); acctMsg('Sending…');
+      const { error } = await acct.sb.auth.resetPasswordForEmail(f.elements.email.value.trim(), { redirectTo: siteUrl });
+      busy(f, false);
+      if (error) { acctMsg(friendly(error), 'bad'); return; }
+      acctMsg('If there is an account with that email, we sent it a link to choose a new password.', 'good');
+    });
+
+    $('formNewpass').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = e.currentTarget;
+      busy(f, true); acctMsg('Saving…');
+      const { error } = await acct.sb.auth.updateUser({ password: f.elements.password.value });
+      busy(f, false);
+      if (error) { acctMsg(friendly(error), 'bad'); return; }
+      f.reset();
+      showAcctView('account');
+      acctMsg('Your new password is saved.', 'good');
+    });
+
+    $('formName').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = e.currentTarget, name = $('acctName').value.trim().slice(0, 40) || null;
+      busy(f, true);
+      const { error } = await acct.sb.from('profiles')
+        .upsert({ id: acct.user.id, display_name: name, settings: currentSettings(), updated_at: new Date().toISOString() });
+      busy(f, false);
+      if (error) { acctMsg(friendly(error), 'bad'); return; }
+      acct.profile = { ...(acct.profile || {}), display_name: name };
+      renderAccountBtn();
+      acctMsg('Display name saved.', 'good');
+    });
+
+    $('acctImportBtn').addEventListener('click', async () => {
+      const local = localStats();
+      if (!local.best) return;
+      const row = { time_ms: Math.round(local.best) };
+      const { error } = await acct.sb.from('solves').insert(row);
+      if (error) { acctMsg(friendly(error), 'bad'); return; }
+      try { localStorage.setItem('deskcube-imported-' + acct.user.id, '1'); } catch (e) {}
+      acct.remote.unshift({ ...row, solved_at: new Date().toISOString() });
+      useAccountStats();
+      renderAccount();
+      acctMsg('Added to your account.', 'good');
+    });
+    $('acctImportSkip').addEventListener('click', () => {
+      try { localStorage.setItem('deskcube-imported-' + acct.user.id, '1'); } catch (e) {}
+      renderAccount();
+    });
+
+    $('acctSignOut').addEventListener('click', async () => {
+      await acct.sb.auth.signOut();
+      acctDialog.close();
+      setStatus('Signed out. Your times here are saved in this browser only.');
+    });
+
+    $('acctDeleteBtn').addEventListener('click', async () => {
+      const btn = $('acctDeleteBtn');
+      btn.disabled = true; acctMsg('Deleting…');
+      const uid = acct.user.id;
+      const { error } = await acct.sb.rpc('delete_my_account');
+      btn.disabled = false;
+      if (error) { acctMsg(friendly(error), 'bad'); return; }
+      try { localStorage.removeItem('deskcube-imported-' + uid); } catch (e) {}
+      await acct.sb.auth.signOut({ scope: 'local' });
+      acctDialog.close();
+      setStatus('Your account and its saved solves were deleted.');
+    });
+  }
 
   buildCube();
   resize();
