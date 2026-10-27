@@ -179,6 +179,28 @@
   dialog.acct .acct-msg:empty { display: none; }
   dialog.acct .acct-msg.bad { color: var(--danger); }
   dialog.acct .acct-msg.good { color: var(--good); }
+
+  /* First visit: the sign-in dialog becomes a full welcome page over a plain cubing-mat background. */
+  .welcome-cover {
+    position: fixed; inset: 0; z-index: 50;
+    background: radial-gradient(ellipse at 50% 40%, var(--mat) 0%, var(--mat) 40%, var(--mat-edge) 100%);
+  }
+  .landing-brand, .landing-skip { display: none; }
+  dialog.acct.landing { width: min(420px, calc(100vw - 32px)); padding: 28px 28px 22px; }
+  dialog.acct.landing::backdrop { background: transparent; }
+  dialog.acct.landing .acct-close { display: none; }
+  dialog.acct.landing .landing-brand {
+    display: flex; flex-direction: column; gap: 6px; text-align: center;
+    padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--line);
+  }
+  .landing-brand h2 { margin: 0; font-family: var(--font-display); font-size: 2rem; letter-spacing: 0.02em; text-wrap: balance; }
+  dialog.acct .landing-brand p { color: var(--muted); font-size: 0.92rem; text-wrap: balance; }
+  dialog.acct.landing .landing-skip {
+    display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+    margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line);
+  }
+  .guest-btn { width: 100%; padding: 10px 14px; }
+  .landing-skip span { color: var(--muted); font-size: 0.8rem; }
   button.wide { grid-column: span 2; }
 
   h2 { margin: 0 0 10px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
@@ -427,8 +449,13 @@
       </div>
     </form>
   </dialog>
+  <div class="welcome-cover" id="welcomeCover" hidden></div>
   <dialog class="confirm acct" id="accountDialog" aria-label="Account">
     <button type="button" class="acct-close" id="acctClose" aria-label="Close">×</button>
+    <div class="landing-brand">
+      <h2>Desk Cube</h2>
+      <p>A 3×3 cube you can turn, time and learn to solve in your browser.</p>
+    </div>
     <form data-view="signin" id="formSignin">
       <h3>Sign in</h3>
       <p>Save your solves and settings to your account and see them on any computer.</p>
@@ -491,6 +518,10 @@
       </div>
     </div>
     <p class="acct-msg" id="acctMsg" role="status" aria-live="polite"></p>
+    <div class="landing-skip">
+      <button type="button" class="guest-btn" id="acctGuest">Continue without an account</button>
+      <span>Your times are kept in this browser only. You can sign in any time.</span>
+    </div>
   </dialog>
   <div class="kp-backdrop" id="keysBackdrop" hidden></div>
   <button class="keys-tab" id="keysTab" aria-controls="keysPanel" title="Show the controls (?)">Controls</button>
@@ -2097,10 +2128,25 @@
     state.best = local.best; state.solves = local.solves;
     renderPanel();
   }
+  // New visitors (no account session, never chose to skip) see the sign-in dialog as a welcome page first.
+  const GUEST_KEY = 'deskcube-guest';
+  const isLanding = () => acctDialog.classList.contains('landing');
+  function hasStoredSession() {
+    try { return Object.keys(localStorage).some(k => /^sb-.+-auth-token$/.test(k)); } catch (e) { return false; }
+  }
+  function rememberGuest() { try { localStorage.setItem(GUEST_KEY, '1'); } catch (e) {} }
+  function showLanding() {
+    acctDialog.classList.add('landing');
+    $('welcomeCover').hidden = false;
+    openAccount('signin');
+  }
+  function endLanding() { if (isLanding()) acctDialog.close(); }
+
   async function onAuth(event, session) {
     const user = session ? session.user : null;
     const same = (user && user.id) === (acct.user && acct.user.id);
     acct.user = user;
+    if (user) endLanding();
     if (event === 'PASSWORD_RECOVERY') { renderAccountBtn(); openAccount('newpass'); if (!same && user) loadAccount(); return; }
     renderAccountBtn();
     if (same) return;
@@ -2142,7 +2188,7 @@
       busy(f, false);
       if (error) { acctMsg(friendly(error), 'bad'); return; }
       f.reset();
-      showAcctView('account');
+      if (isLanding()) endLanding(); else showAcctView('account');
     });
 
     $('formSignup').addEventListener('submit', async e => {
@@ -2162,7 +2208,7 @@
         return;
       }
       f.reset();
-      if (data.session) { showAcctView('account'); return; }
+      if (data.session) { if (isLanding()) endLanding(); else showAcctView('account'); return; }
       showAcctView('signin');
       acctMsg(`Almost done: we sent a confirmation link to ${email}. Open it, then you're signed in.`, 'good');
     });
@@ -2220,6 +2266,7 @@
     });
 
     $('acctSignOut').addEventListener('click', async () => {
+      rememberGuest();
       await acct.sb.auth.signOut();
       acctDialog.close();
       setStatus('Signed out. Your times here are saved in this browser only.');
@@ -2233,10 +2280,24 @@
       btn.disabled = false;
       if (error) { acctMsg(friendly(error), 'bad'); return; }
       try { localStorage.removeItem('deskcube-imported-' + uid); } catch (e) {}
+      rememberGuest();
       await acct.sb.auth.signOut({ scope: 'local' });
       acctDialog.close();
       setStatus('Your account and its saved solves were deleted.');
     });
+
+    $('acctGuest').addEventListener('click', () => { rememberGuest(); endLanding(); });
+    // The welcome page needs a choice: Esc doesn't dismiss it.
+    acctDialog.addEventListener('cancel', e => { if (isLanding()) e.preventDefault(); });
+    acctDialog.addEventListener('close', () => {
+      acctDialog.classList.remove('landing');
+      $('welcomeCover').hidden = true;
+    });
+    let guest = false;
+    try { guest = localStorage.getItem(GUEST_KEY) === '1'; } catch (e) {}
+    // Links from confirmation and reset emails carry the session in the address, so skip the welcome page for those.
+    const fromEmail = /access_token|type=recovery|[?&]code=/.test(location.hash + location.search);
+    if (!guest && !hasStoredSession() && !fromEmail) showLanding();
   }
 
   buildCube();
