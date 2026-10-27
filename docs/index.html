@@ -377,6 +377,7 @@ img { max-width: 100%; }
         <li><span>Undo (also)</span><span class="kp-keys"><kbd>Ctrl</kbd>+<kbd>Z</kbd></span></li>
         <li><span>Show or hide this panel</span><span class="kp-keys"><kbd>?</kbd></span></li>
         <li class="learn-only"><span>Get a hint for the next step</span><span class="kp-keys"><kbd>H</kbd></span></li>
+        <li><span>Flip the cube upside down (x2)</span><span class="kp-keys"><kbd>V</kbd></span></li>
         <li><span>Turn the whole cube left / right (y, y′)</span><span class="kp-keys"><kbd>←</kbd><kbd>→</kbd></span></li>
         <li><span>Tip the whole cube up / down (x, x′)</span><span class="kp-keys"><kbd>↑</kbd><kbd>↓</kbd></span></li>
         <li><span>Zoom in / out (or scroll)</span><span class="kp-keys"><kbd>+</kbd><kbd>−</kbd></span></li>
@@ -463,7 +464,7 @@ img { max-width: 100%; }
       <button class="primary" id="scrambleBtn">Scramble</button>
       <button id="undoBtn">Undo</button>
       <button id="resetBtn">Reset</button>
-      <button id="flipBtn" class="wide" title="Turn the whole cube upside down (x2)">Flip upside down</button>
+      <button id="flipBtn" class="wide" title="Turn the whole cube upside down (x2), key V">Flip upside down <kbd>V</kbd></button>
       <button id="viewBtn" title="Return to the starting camera angle">Reset view</button>
     </div>
 
@@ -1026,7 +1027,7 @@ img { max-width: 100%; }
     {
       title: 'Turn the cube over',
       body: [
-        'The white layer is done. Turn the cube upside down so yellow is on top and the solved layer is underneath. You can use the Flip upside down button on the Practice tab.',
+        'The white layer is done. Turn the cube upside down so yellow is on top and the solved layer is underneath. You can use the Flip upside down button on the Practice tab, or press V.',
         'Keep yellow on top for the rest of the lesson. The letters still follow your screen, so <code class="mv">U</code> now turns the yellow face.',
       ],
       setup: '', alg: 'x2',
@@ -1285,7 +1286,7 @@ img { max-width: 100%; }
     r.className = 'kb-row';
     r.style.paddingLeft = (ri * 5) + 'px';
     for (const ch of row) {
-      const m = SPEED_KEYS[ch];
+      const m = SPEED_KEYS[ch] || (ch === 'v' ? 'x2' : null);
       const cap = document.createElement('div');
       cap.className = 'kb-key' + (m ? ' on' : '') + (ri === 2 && (ch === 'f' || ch === 'j') ? ' home' : '');
       cap.innerHTML = `<span class="kb-ch">${ch.toUpperCase()}</span><span class="kb-mv">${m || ''}</span>`;
@@ -1843,6 +1844,8 @@ img { max-width: 100%; }
     // Arrow keys turn the whole cube (like Flip): the front face moves the way the arrow points.
     const arrows = { ArrowLeft: 'y', ArrowRight: "y'", ArrowUp: 'x', ArrowDown: "x'" };
     if (arrows[e.key]) { e.preventDefault(); if (!e.repeat) userMove(arrows[e.key]); return; }
+    // V flips the cube upside down in both layouts (no face uses V).
+    if (e.key === 'v' || e.key === 'V') { e.preventDefault(); if (!e.repeat) userMove('x2'); return; }
     if (e.key === '+' || e.key === '=') { e.preventDefault(); setZoom(view.zoom / 1.2); return; }
     if (e.key === '-' || e.key === '_') { e.preventDefault(); setZoom(view.zoom * 1.2); return; }
     if (e.key === '0') { e.preventDefault(); setZoom(1); return; }
