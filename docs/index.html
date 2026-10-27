@@ -122,6 +122,24 @@ img { max-width: 100%; }
     font-family: var(--font-display); font-weight: 600; font-size: 3.2rem; line-height: 1;
     font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
   }
+  .clock-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .pause-btn { padding: 8px 16px; flex: none; }
+  .pause-cover {
+    position: fixed; inset: 0; z-index: 45; display: grid; place-items: center;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    background: radial-gradient(ellipse at 50% 40%, var(--mat) 0%, var(--mat) 40%, var(--mat-edge) 100%);
+  }
+  .pause-card {
+    width: min(380px, 100%); display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 28px 24px 22px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+  }
+  .pause-card h2 { margin: 0; font-family: var(--font-display); font-size: 1.5rem; }
+  .pause-time { font-family: var(--font-display); font-weight: 600; font-size: 3rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  .pause-card p { margin: 0; }
+  .pause-meta { color: var(--muted); font-size: 0.92rem; }
+  .pause-note { color: var(--muted); font-size: 0.85rem; line-height: 1.5; text-wrap: balance; }
+  .pause-card .primary { width: 100%; padding: 11px 14px; margin-top: 6px; }
   .clock .time.running { color: var(--accent); }
   .clock .time.done { color: var(--good); }
   .status { color: var(--muted); font-size: 0.9rem; min-height: 1.3em; }
@@ -486,6 +504,17 @@ img { max-width: 100%; }
       </div>
     </form>
   </dialog>
+  <div class="pause-cover" id="pauseCover" role="dialog" aria-modal="true" aria-labelledby="pausedTitle" hidden>
+    <div class="pause-card">
+      <span class="label">Desk Cube</span>
+      <h2 id="pausedTitle">Solve paused</h2>
+      <div class="pause-time" id="pausedTime">0:00.00</div>
+      <p class="pause-meta" id="pausedMeta"></p>
+      <p class="pause-note">The cube and your moves are hidden until you resume. The timer starts again from where it stopped.</p>
+      <button class="primary" id="resumeBtn">Resume solve</button>
+      <button type="button" class="link" id="giveUpBtn">Give up this solve</button>
+    </div>
+  </div>
   <div class="welcome-cover" id="welcomeCover" hidden></div>
   <dialog class="confirm acct" id="accountDialog" aria-label="Account">
     <button type="button" class="acct-close" id="acctClose" aria-label="Close">×</button>
@@ -613,7 +642,10 @@ img { max-width: 100%; }
 
     <div class="panel" id="panel-practice" role="tabpanel">
     <section class="clock">
-      <div class="time" id="time">0:00.00</div>
+      <div class="clock-row">
+        <div class="time" id="time">0:00.00</div>
+        <button id="pauseBtn" class="pause-btn" title="Pause the solve and hide the cube" hidden>Pause</button>
+      </div>
       <div class="status" id="status">Solved cube. Press Scramble to start a timed solve.</div>
     </section>
 
@@ -968,6 +1000,7 @@ img { max-width: 100%; }
     renderSeq($('historySeq'), state.history.slice(-60).map(h => h.label), 'No moves yet');
     timeEl.classList.toggle('running', state.mode === 'running');
     timeEl.classList.toggle('done', state.mode === 'solved');
+    $('pauseBtn').hidden = !(state.mode === 'running' || state.mode === 'ready') || state.scrambling;
     $('undoBtn').disabled = !state.history.length || state.scrambling;
     $('scrambleBtn').disabled = state.scrambling;
   }
@@ -1075,6 +1108,7 @@ img { max-width: 100%; }
     queue = [];
     buildCube();
     Object.assign(state, { mode: 'idle', moves: 0, history: [], scrambling: false, scrambleText: '' });
+    clearPaused();
     lesson.ready = false;
     renderTime(0);
     setStatus('Solved cube. Press Scramble to start a timed solve.');
@@ -2137,7 +2171,8 @@ img { max-width: 100%; }
     resetDialog.returnValue = '';
     if (resetDialog.showModal) resetDialog.showModal(); else reset();
   });
-  resetDialog.addEventListener('close', () => { if (resetDialog.returnValue === 'ok') reset(); });
+  // React to the button itself: the dialog's close event can arrive late (it waits for the next frame).
+  resetDialog.querySelector('form').addEventListener('submit', e => { if (e.submitter && e.submitter.value === 'ok') reset(); });
   $('undoBtn').addEventListener('click', undo);
   $('flipBtn').addEventListener('click', () => userMove('x2'));
   $('viewBtn').addEventListener('click', () => flyTo(V(1, 1, 1), V(0, 1, 0)));
@@ -2148,6 +2183,10 @@ img { max-width: 100%; }
   window.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select')) return;
     if (document.querySelector('dialog[open]')) return;
+    if (paused) {
+      if (e.key === 'Enter' && e.target === document.body) { e.preventDefault(); resumeSolve(); }
+      return;
+    }
     if (e.key === '?') { e.preventDefault(); toggleKeys(); return; }
     if (keyLayout !== 'speed' && (e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); showTab('practice'); getHint(); return; }
     if (e.key === 'Escape' && !$('keysPanel').hidden && overlayMQ.matches) { setKeysOpen(false, false); return; }
@@ -2175,6 +2214,113 @@ img { max-width: 100%; }
     e.preventDefault();
     userMove(e.shiftKey ? base + "'" : base);
   });
+
+  // ---------- Pause ----------
+  // Pausing freezes the timer and covers the whole page, so the cube and the move list can't be studied
+  // in the meantime. The paused solve is saved in this browser (and to the account when signed in),
+  // so it survives closing the page. Closing the page mid-solve pauses it automatically.
+  var paused = null;   // { elapsed, prevMode, moves, history, cube, scramble, at }
+  const PAUSE_KEY = 'deskcube-paused';
+  function snapshotSolve(prevMode, elapsed) {
+    const r = n => Math.round(n * 1e4) / 1e4;
+    return {
+      elapsed: Math.round(elapsed), prevMode, moves: state.moves, scramble: state.scrambleText || '',
+      history: state.history.slice(-500).map(h => ({ label: h.label, axis: h.axis, layer: h.layer, angle: h.angle })),
+      cube: cubies.map(c => [c.position.x, c.position.y, c.position.z, c.quaternion.x, c.quaternion.y, c.quaternion.z, c.quaternion.w].map(r)),
+      at: Date.now(),
+    };
+  }
+  function storePaused() {
+    try {
+      if (paused) localStorage.setItem(PAUSE_KEY, JSON.stringify(paused));
+      else localStorage.removeItem(PAUSE_KEY);
+    } catch (e) {}
+    accountSaveNow();
+  }
+  function clearPaused() {
+    if (!paused) return;
+    paused = null;
+    $('pauseCover').hidden = true;
+    storePaused();
+  }
+  // Land any turns still animating, then freeze the clock.
+  function takeSnapshot() {
+    if (anim) finishAnim();
+    while (queue.length) { startNext(); finishAnim(); }
+    if (state.scrambling || (state.mode !== 'running' && state.mode !== 'ready')) return null;
+    return snapshotSolve(state.mode, state.mode === 'running' ? performance.now() - state.start : 0);
+  }
+  function showPaused() {
+    renderTime(paused.elapsed);
+    $('pausedTime').textContent = fmt(paused.elapsed);
+    const when = new Date(paused.at).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    $('pausedMeta').textContent = `${paused.moves} move${paused.moves === 1 ? '' : 's'} so far · paused ${when}`;
+    $('pauseCover').hidden = false;
+    setStatus('Paused.');
+    renderPanel();
+    $('resumeBtn').focus();
+  }
+  function pauseSolve() {
+    if (paused) return;
+    const p = takeSnapshot();
+    if (!p) return;
+    paused = p;
+    state.mode = 'paused';
+    showPaused();
+    storePaused();
+  }
+  function restorePaused(p) {
+    if (!p || !Array.isArray(p.cube) || p.cube.length !== 26) return false;
+    if (anim) finishAnim();
+    queue = [];
+    buildCube();
+    const m = new THREE.Matrix4();
+    cubies.forEach((c, i) => {
+      const v = p.cube[i];
+      c.position.set(Math.round(v[0]), Math.round(v[1]), Math.round(v[2]));
+      c.quaternion.set(v[3], v[4], v[5], v[6]).normalize();
+      m.makeRotationFromQuaternion(c.quaternion);
+      for (let k = 0; k < 16; k++) m.elements[k] = Math.round(m.elements[k]);
+      c.quaternion.setFromRotationMatrix(m);
+    });
+    paintMaps();
+    Object.assign(state, { moves: p.moves || 0, history: p.history || [], scrambling: false, scrambleText: p.scramble || '', mode: 'paused' });
+    lesson.ready = false;
+    paused = p;
+    try { localStorage.setItem(PAUSE_KEY, JSON.stringify(p)); } catch (e) {}
+    showTab('practice');
+    showPaused();
+    renderStages();
+    return true;
+  }
+  function resumeSolve() {
+    if (!paused) return;
+    const p = paused;
+    paused = null;
+    storePaused();
+    $('pauseCover').hidden = true;
+    if (p.prevMode === 'running') {
+      state.mode = 'running';
+      state.start = performance.now() - p.elapsed;
+      setStatus('Solving…');
+    } else {
+      state.mode = 'ready';
+      renderTime(0);
+      setStatus('Scrambled. The timer starts on your first turn.');
+    }
+    renderPanel();
+  }
+  $('pauseBtn').addEventListener('click', pauseSolve);
+  $('resumeBtn').addEventListener('click', resumeSolve);
+  // Giving up asks first, using the Reset confirmation.
+  $('giveUpBtn').addEventListener('click', () => $('resetBtn').click());
+  // Closing or reloading the page mid-solve keeps the solve, paused.
+  window.addEventListener('pagehide', pauseSolve);
+  function loadPaused() {
+    let p = null;
+    try { p = JSON.parse(localStorage.getItem(PAUSE_KEY) || 'null'); } catch (e) {}
+    if (p) restorePaused(p);
+  }
 
   // ---------- Light / dark ----------
   // With no choice saved the page follows the system (or the Claude viewer's own theme setting).
@@ -2282,7 +2428,7 @@ img { max-width: 100%; }
   }
 
   function currentSettings() {
-    return { mode: isSpeed() ? 'speed' : 'learn', layout: keyLayout, zoom: Math.round(view.zoom * 100) / 100, theme: themeChoice };
+    return { mode: isSpeed() ? 'speed' : 'learn', layout: keyLayout, zoom: Math.round(view.zoom * 100) / 100, theme: themeChoice, paused: paused || null };
   }
   function applySettings(s) {
     acct.applying = true;
@@ -2290,7 +2436,17 @@ img { max-width: 100%; }
     if (s.layout === 'speed' || s.layout === 'letters') setLayout(s.layout);
     if (typeof s.zoom === 'number') setZoom(s.zoom);
     if (s.theme === 'light' || s.theme === 'dark') setTheme(s.theme);
+    // A solve paused on another computer opens here, paused, unless one is already going in this browser.
+    const busy = paused || state.mode === 'running' || state.mode === 'ready';
+    if (s.paused && !busy) restorePaused(s.paused);
     acct.applying = false;
+  }
+  // Save settings (including a paused solve) straight away rather than after the usual short wait.
+  function accountSaveNow() {
+    if (!acct || !acct.user || !acct.loaded) return;
+    clearTimeout(acct.saveTimer);
+    acct.sb.from('profiles').update({ settings: currentSettings(), updated_at: new Date().toISOString() })
+      .eq('id', acct.user.id).then(() => {});
   }
   function accountSettingsChanged() {
     if (!acct || !acct.user || !acct.loaded || acct.applying) return;
@@ -2515,6 +2671,7 @@ img { max-width: 100%; }
   resize();
   placeCamera();
   setZoom(view.zoom);
+  loadPaused();
   renderPanel();
   renderStages();
   requestAnimationFrame(step);
