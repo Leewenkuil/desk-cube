@@ -601,11 +601,6 @@ img { max-width: 100%; }
     </section>
 
     <section>
-      <h2>Scramble</h2>
-      <div class="seq empty" id="scrambleSeq">None yet</div>
-    </section>
-
-    <section>
       <h2>Your moves</h2>
       <div class="seq empty" id="historySeq">No moves yet</div>
     </section>
@@ -1013,7 +1008,6 @@ img { max-width: 100%; }
     state.moves = 0; state.history = []; state.mode = 'idle';
     renderTime(0);
     setStatus('Scrambling…');
-    renderSeq($('scrambleSeq'), seq, 'None yet');
     state.scrambleText = seq.join(' ');
     for (const m of seq) enqueueLabel(m, { scramble: true, fast: true });
     renderPanel();
@@ -1027,7 +1021,6 @@ img { max-width: 100%; }
     lesson.ready = false;
     renderTime(0);
     setStatus('Solved cube. Press Scramble to start a timed solve.');
-    renderSeq($('scrambleSeq'), [], 'None yet');
     renderPanel();
   }
 
@@ -1237,7 +1230,6 @@ img { max-width: 100%; }
     Object.assign(state, { mode: 'idle', moves: 0, history: [] });
     renderTime(0);
     setStatus('Lesson example on the cube.');
-    renderSeq($('scrambleSeq'), [], 'None yet');
     lesson.frame = viewFrame();
     lesson.pos = 0;
     lesson.ready = false;
