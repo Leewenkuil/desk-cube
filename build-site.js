@@ -26,4 +26,6 @@ fs.mkdirSync(path.join(__dirname, 'docs'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, 'docs', 'index.html'), head + src + '\n</body>\n</html>\n');
 // Tells GitHub Pages to serve the files as they are.
 fs.writeFileSync(path.join(__dirname, 'docs', '.nojekyll'), '');
+// The site's own domain (set up in Cloudflare DNS); GitHub Pages reads it from this file.
+fs.writeFileSync(path.join(__dirname, 'docs', 'CNAME'), 'deskcube.app\n');
 console.log('Built docs/index.html');
