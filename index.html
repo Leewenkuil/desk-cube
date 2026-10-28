@@ -480,10 +480,19 @@
 
   .learn-btn { padding: 8px 14px; }
 
-  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
   .tabs button { border: 0; background: transparent; padding: 8px; color: var(--muted); }
   .tabs button[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
   .panel { display: flex; flex-direction: column; gap: 22px; }
+  .tr-intro { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.5; }
+  .tr-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tr-pick label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .tr-pick .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  .tr-pick select { font: inherit; font-size: 0.85rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-width: 0; }
+  .tr-alg-body { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 0.88rem; line-height: 1.5; }
+  .tr-alg-body p { margin: 0; }
+  .actions.two { grid-template-columns: 1fr 1fr; }
+  .tr-auto { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--muted); }
 
   .lesson-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .lesson-top .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; white-space: nowrap; }
@@ -747,6 +756,7 @@
     <div class="tabs learn-only" role="tablist">
       <button role="tab" id="tab-practice" aria-selected="true" aria-controls="panel-practice">Practice</button>
       <button role="tab" id="tab-lesson" aria-selected="false" aria-controls="panel-lesson">Lesson</button>
+      <button role="tab" id="tab-trainer" aria-selected="false" aria-controls="panel-trainer">Trainer</button>
     </div>
 
     <div class="panel" id="panel-lesson" role="tabpanel" hidden>
@@ -772,6 +782,34 @@
         <button id="prevStep">Back</button>
         <button id="nextStep">Next step</button>
       </div>
+    </div>
+
+    <div class="panel" id="panel-trainer" role="tabpanel" hidden>
+      <p class="tr-intro">Drill one step until it's automatic. Each case starts with the earlier steps already done. The clock starts on your first turn and stops the moment the step is finished.</p>
+      <div class="tr-pick">
+        <label><span class="label">Step</span><select id="trStage"></select></label>
+        <label id="trCaseWrap"><span class="label">Case</span><select id="trCase"></select></label>
+      </div>
+      <details class="kp-settings" id="trAlgWrap">
+        <summary><span class="kp-sum-title">Moves for this step</span><span class="kp-sum-val">peeking is fine</span></summary>
+        <div class="tr-alg-body" id="trAlg"></div>
+      </details>
+      <section class="clock">
+        <div class="time" id="trTime">0:00.00</div>
+        <div class="status" id="trStatus">Pick a step, then press New case.</div>
+      </section>
+      <div class="stats">
+        <div class="stat"><span class="label">Reps</span><span class="value" id="trReps">0</span></div>
+        <div class="stat"><span class="label">Best</span><span class="value" id="trBest">–</span></div>
+        <div class="stat"><span class="label">Avg of 5</span><span class="value" id="trAvg">–</span></div>
+      </div>
+      <div class="actions two">
+        <button class="primary" id="trDealBtn" title="Deal a new case (Enter)">New case <kbd>Enter</kbd></button>
+        <button id="trSolutionBtn" title="Show the moves that finish this step (H)">Show solution <kbd>H</kbd></button>
+      </div>
+      <label class="tr-auto"><input type="checkbox" id="trAuto" checked> Deal the next case by itself when I finish</label>
+      <div class="lesson-parts" id="trSolution" hidden></div>
+      <button class="link-btn" id="trLessonBtn">Explain this step in the lesson</button>
     </div>
 
     <div class="panel" id="panel-practice" role="tabpanel">
@@ -1116,6 +1154,7 @@
       pivot.rotation[anim.axis] = anim.angle * e;
       if (p >= 1) finishAnim();
     }
+    if (trainer.phase === 'running') $('trTime').textContent = fmt(now - trainer.start);
     if (state.mode === 'running') renderTime(now - state.start);
     else if (state.mode === 'inspect') {
       const left = 15 - (now - state.inspectStart) / 1000;
@@ -1244,6 +1283,7 @@
     const whole = item.layer === null;
     if (!whole) state.moves++;
     if (item.undo) state.history.pop(); else state.history.push(item);
+    trainerOnMove(item);
     if ((state.mode === 'ready' || state.mode === 'inspect') && !whole) startTimer(performance.now());
     if (!queue.length && state.mode === 'running' && isSolved()) {
       const t = performance.now() - state.start;
@@ -1302,6 +1342,7 @@
     state.moves = 0; state.history = []; state.mode = 'idle';
     renderTime(0);
     setStatus('Scrambling…');
+    stopTrainer();
     state.scrambleText = seq.join(' ');
     for (const m of seq) enqueueLabel(m, { scramble: true, fast: true });
     renderPanel();
@@ -1317,6 +1358,7 @@
     Object.assign(state, { mode: 'idle', moves: 0, history: [], scrambling: false, scrambleText: '', rec: null });
     clearPaused();
     lesson.ready = false;
+    stopTrainer();
     renderTime(0);
     setStatus('Solved cube. Press Scramble to start a timed solve.');
     renderPanel();
@@ -1541,13 +1583,23 @@
       p.textContent = 'Press Set up example (or Play) to put a cube at the start of this step.';
       box.appendChild(p);
     }
-    if (ex) ex.parts.forEach((part, pi) => {
+    if (ex) renderParts(box, ex.parts);
+    box.querySelectorAll('.alg span').forEach((chip, i) => {
+      chip.className = lesson.ready && i < lesson.pos ? 'done' : lesson.ready && i === lesson.pos ? 'next' : '';
+    });
+    $('prevStep').disabled = lesson.step === 0;
+    $('nextStep').disabled = lesson.step === LESSON.length - 1;
+  }
+
+  // Captioned parts of a worked solution, each with its grip and move chips.
+  function renderParts(box, parts) {
+    parts.forEach((part, pi) => {
       const row = document.createElement('div');
       row.className = 'hint-phase';
       if (part.caption) {
         const cap = document.createElement('div');
         cap.className = 'part-cap';
-        cap.textContent = (ex.parts.length > 1 ? `${pi + 1}. ` : '') + part.caption;
+        cap.textContent = (parts.length > 1 ? `${pi + 1}. ` : '') + part.caption;
         row.appendChild(cap);
       }
       if (part.grip) {
@@ -1566,16 +1618,11 @@
       row.appendChild(alg);
       box.appendChild(row);
     });
-    box.querySelectorAll('.alg span').forEach((chip, i) => {
-      chip.className = lesson.ready && i < lesson.pos ? 'done' : lesson.ready && i === lesson.pos ? 'next' : '';
-    });
-    $('prevStep').disabled = lesson.step === 0;
-    $('nextStep').disabled = lesson.step === LESSON.length - 1;
   }
 
   // Turn a layer instantly, without animating (sets up lesson examples).
   function turnNow(m) {
-    queue.unshift({ axis: m.axis, layer: m.layer, angle: m.angle, quiet: true });
+    queue.unshift({ axis: m.axis, layer: m.layer, angle: m.angle, wide: m.wide, quiet: true });
     startNext();
     finishAnim();
   }
@@ -1640,33 +1687,42 @@
     if (s.stage === undefined && !s.before) return finish([], [{ frame: null, moves: demoMoves() }]);
     const solved = readState(), target = s.stage !== undefined ? s.stage : s.before;
     for (let tries = 0; tries < 12; tries++) {
-      const setup = randomTurns(25);
-      let st = applyMoves(solved, setup), ok = true;
-      // Do the earlier steps quietly.
-      for (let guard = 0; ok && stageNow(st) < target; guard++) {
-        const h = findHint(st);
-        if (!h.phases || guard > 40) { ok = false; break; }
-        const mv = h.phases.flatMap(p => p.moves);
-        setup.push(...mv);
-        st = applyMoves(st, mv);
-      }
-      // Try another scramble if that failed, or if this step happened to finish itself.
-      if (!ok || stageNow(st) !== target) continue;
-      if (s.stage === undefined) return finish(setup, [{ frame: null, moves: demoMoves() }]);
-      const parts = [];
-      for (let guard = 0; ok && stageNow(st) === target; guard++) {
-        const h = findHint(st);
-        if (!h.phases || guard > 40) { ok = false; break; }
-        const targets = hintTargets(st, h);
-        h.phases.forEach((p, pi) => {
-          const before = st;
-          st = applyMoves(st, p.moves);
-          parts.push({ frame: p.frame, moves: p.moves, ...describePart(target, before, st, p, h, targets, pi) });
-        });
-      }
-      if (ok && parts.length) return finish(setup, parts);
+      const d = dealStage(solved, target);
+      if (!d) continue;
+      if (s.stage === undefined) return finish(d.setup, [{ frame: null, moves: demoMoves() }]);
+      const parts = solveParts(d.st, target);
+      if (parts) return finish(d.setup, parts);
     }
     return null;
+  }
+  // A random cube with every stage before `target` done quietly by the hint solver.
+  // Null if that failed, or if this stage happened to finish itself.
+  function dealStage(solved, target) {
+    const setup = randomTurns(25);
+    let st = applyMoves(solved, setup);
+    for (let guard = 0; stageNow(st) < target; guard++) {
+      const h = findHint(st);
+      if (!h.phases || guard > 40) return null;
+      const mv = h.phases.flatMap(p => p.moves);
+      setup.push(...mv);
+      st = applyMoves(st, mv);
+    }
+    return stageNow(st) === target ? { setup, st } : null;
+  }
+  // The moves that finish this stage from st, in captioned parts.
+  function solveParts(st, target) {
+    const parts = [];
+    for (let guard = 0; stageNow(st) === target; guard++) {
+      const h = findHint(st);
+      if (!h.phases || guard > 40) return null;
+      const targets = hintTargets(st, h);
+      h.phases.forEach((p, pi) => {
+        const before = st;
+        st = applyMoves(st, p.moves);
+        parts.push({ frame: p.frame, moves: p.moves, ...describePart(target, before, st, p, h, targets, pi) });
+      });
+    }
+    return parts.length ? parts : null;
   }
 
   function setUpExample(autoplay) {
@@ -1706,7 +1762,7 @@
     if (part.frame && (lesson.pos === 0 || flat[lesson.pos - 1].part !== first.part)) flyToFrame(part.frame);
     for (let i = lesson.pos; i < end; i++) {
       const m = flat[i];
-      enqueue({ label: m.label, axis: m.axis, layer: m.layer, angle: m.angle, lessonIndex: i });
+      enqueue({ label: m.label, axis: m.axis, layer: m.layer, angle: m.angle, wide: m.wide, lessonIndex: i });
     }
     if (all) setLessonStatus('Playing the moves…');
   }
@@ -1722,11 +1778,12 @@
   }
 
   function showTab(name) {
-    const lessonOn = name === 'lesson';
-    $('panel-lesson').hidden = !lessonOn;
-    $('panel-practice').hidden = lessonOn;
-    $('tab-lesson').setAttribute('aria-selected', lessonOn);
-    $('tab-practice').setAttribute('aria-selected', !lessonOn);
+    for (const t of ['practice', 'lesson', 'trainer']) {
+      $('panel-' + t).hidden = t !== name;
+      $('tab-' + t).setAttribute('aria-selected', t === name);
+    }
+    // Leaving the trainer drops the case in progress.
+    if (name !== 'trainer') stopTrainer();
     try { localStorage.setItem('deskcube-tab', name); } catch (e) {}
   }
 
@@ -1745,6 +1802,7 @@
   $('tryBtn').addEventListener('click', () => { showTab('practice'); scramble(); });
   $('tab-practice').addEventListener('click', () => showTab('practice'));
   $('tab-lesson').addEventListener('click', () => showTab('lesson'));
+  $('tab-trainer').addEventListener('click', () => showTab('trainer'));
   $('learnBtn').addEventListener('click', () => {
     showTab('lesson');
     if (window.matchMedia('(max-width: 780px)').matches) $('rail').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
@@ -2345,7 +2403,7 @@
     if (hint.pos === 0 || hint.flat[hint.pos - 1].phase !== first.phase) flyToFrame(hint.result.phases[first.phase].frame);
     for (let i = hint.pos; i < end; i++) {
       const m = hint.flat[i];
-      enqueue({ label: m.label, axis: m.axis, layer: m.layer, angle: m.angle, hintIndex: i });
+      enqueue({ label: m.label, axis: m.axis, layer: m.layer, angle: m.angle, wide: m.wide, hintIndex: i });
     }
   }
   function onHintMove(item) {
@@ -2398,6 +2456,192 @@
     goToStep(STAGES[hint.result.stage].lesson);
     showTab('lesson');
   });
+
+  // ---------- Trainer: drill one stage at a time ----------
+  // A case is a fresh cube with the earlier stages done. The clock runs from the first layer turn
+  // until the stage is finished. Phases: idle · ready (dealt, clock waits) · running · done.
+  const TRAIN_CASES = {
+    3: [['dot', 'Dot (center only)'], ['L shape', 'L shape'], ['line', 'Line']],
+    4: [['adjacent', 'Matching pair side by side'], ['opposite', 'Matching pair opposite']],
+    5: [['none', 'No corner home'], ['one', 'One corner home']],
+    6: [['2', '2 corners to twist'], ['3', '3 corners to twist'], ['4', '4 corners to twist']],
+  };
+  const TRAIN_MOVES = [
+    ['No set moves: bring each white edge into the bottom layer, line its side color up with its center, then turn that face twice.'],
+    ['Hold the corner\'s spot at the top front right and repeat <code class="mv">R\' D\' R D</code> until it goes in white side up (1, 3 or 5 times).'],
+    ['Edge goes right: <code class="mv">U R U\' R\' U\' F\' U F</code>', 'Edge goes left: <code class="mv">U\' L\' U L U F U\' F\'</code>'],
+    ['L shape at the back left: <code class="mv">f R U R\' U\' f\'</code>', 'Line held left to right: <code class="mv">F R U R\' U\' F\'</code>', 'Dot: <code class="mv">F R U R\' U\' F\'</code>, then the L shape.'],
+    ['Matching pair at the back and right: <code class="mv">R U R\' U R U2 R\' U</code>', 'Opposite pair: do it once from anywhere, line up a side-by-side pair, then again.'],
+    ['Home corner at the top front right: <code class="mv">U R U\' L\' U R\' U\' L</code>', 'No corner home: do it once from anywhere first.'],
+    ['Wrong corner at the top front right: repeat <code class="mv">R\' D\' R D</code> until yellow is up, then turn only <code class="mv">U</code> to the next one.'],
+  ];
+  var trainer = { phase: 'idle', stage: 3, kase: '', auto: true, start: 0, helped: false, timer: null };
+  let trainStats = {};
+  try {
+    const sel = JSON.parse(localStorage.getItem('deskcube-trainer-sel') || '{}');
+    if (sel.stage >= 0 && sel.stage <= 6) trainer.stage = sel.stage;
+    if (TRAIN_CASES[trainer.stage] && TRAIN_CASES[trainer.stage].some(c => c[0] === sel.kase)) trainer.kase = sel.kase;
+    if (sel.auto === false) trainer.auto = false;
+    trainStats = JSON.parse(localStorage.getItem('deskcube-trainer') || '{}') || {};
+  } catch (e) {}
+  const trainKey = () => `${trainer.stage}:${trainer.kase || 'any'}`;
+  function saveTrainer() {
+    try {
+      localStorage.setItem('deskcube-trainer-sel', JSON.stringify({ stage: trainer.stage, kase: trainer.kase, auto: trainer.auto }));
+      localStorage.setItem('deskcube-trainer', JSON.stringify(trainStats));
+    } catch (e) {}
+  }
+
+  // Which case of its stage a cube is (matches the keys in TRAIN_CASES).
+  function trainCase(st, stage) {
+    const L = layout(st), off = c => c.map((n, i) => n - L.y[i]);
+    if (stage === 3) return yellowShape(st, L);
+    if (stage === 4) {
+      const fr = makeFrame(L.y, L.sides[0]);
+      let adjacent = false;
+      for (const u of ['', 'U', 'U2', "U'"]) {
+        const s = u ? applyMoves(st, option(fr, u).moves) : st;
+        const ok = L.yEdges.filter(c => pieceSolved(s, c)).map(off);
+        if (ok.length === 4) return 'turn';
+        if (ok.length === 2 && ok[0][0] * ok[1][0] + ok[0][1] * ok[1][1] + ok[0][2] * ok[1][2] === 0) adjacent = true;
+      }
+      return adjacent ? 'adjacent' : 'opposite';
+    }
+    if (stage === 5) return stageCounts(st, L)[5] === 0 ? 'none' : 'one';
+    if (stage === 6) { const yc = centerColor(st, L.y); return String(L.yCorners.filter(c => st[slotOf(c, L.y)] !== yc).length); }
+    return '';
+  }
+
+  function stopTrainer() {
+    if (!trainer) return;
+    clearTimeout(trainer.timer);
+    if (trainer.phase === 'idle') return;
+    trainer.phase = 'idle';
+    $('trTime').classList.remove('running', 'done');
+    $('trStatus').textContent = 'Press New case for the next one.';
+  }
+
+  function dealCase() {
+    if (state.scrambling) return;
+    clearTimeout(trainer.timer);
+    endReplay();
+    if (anim) finishAnim();
+    queue = [];
+    buildCube();
+    const solved = readState();
+    let d = null;
+    for (let tries = 0; tries < 80 && !d; tries++) {
+      const c = dealStage(solved, trainer.stage);
+      if (c && (!trainer.kase || trainCase(c.st, trainer.stage) === trainer.kase)) d = c;
+    }
+    if (!d) {
+      $('trStatus').textContent = 'Couldn\'t deal that case just now. Press New case to try again.';
+      return;
+    }
+    for (const m of d.setup) turnNow(m);
+    // From the middle layer on, the lesson holds yellow on top.
+    if (trainer.stage >= 2) turnNow({ axis: 'x', layer: null, angle: Math.PI });
+    placeCamera();
+    Object.assign(state, { mode: 'idle', moves: 0, history: [], scrambling: false, scrambleText: '', rec: null });
+    lesson.ready = false;
+    hint.result = null;
+    setHighlight([]);
+    renderHint();
+    Object.assign(trainer, { phase: 'ready', helped: false });
+    $('trTime').textContent = fmt(0);
+    $('trTime').classList.remove('running', 'done');
+    $('trSolution').hidden = true;
+    $('trStatus').textContent = `Your turn: ${STAGES[trainer.stage].name.toLowerCase()}. The clock starts on your first turn.`;
+    setStatus('Trainer case on the cube.');
+    renderPanel();
+    renderStages();
+  }
+
+  function trainerOnMove(item) {
+    if (!trainer || (trainer.phase !== 'ready' && trainer.phase !== 'running')) return;
+    if (trainer.phase === 'ready') {
+      if (item.layer === null) return;
+      trainer.phase = 'running';
+      trainer.start = item.at || performance.now();
+      $('trTime').classList.add('running');
+      $('trStatus').textContent = `Clock running: finish the ${STAGES[trainer.stage].name.toLowerCase()}.`;
+    }
+    if (queue.length || stageNow(readState()) <= trainer.stage) return;
+    const t = performance.now() - trainer.start;
+    trainer.phase = 'done';
+    $('trTime').textContent = fmt(t);
+    $('trTime').classList.replace('running', 'done');
+    let msg = `Done in ${fmt(t)} with ${state.moves} moves.`;
+    if (trainer.helped) msg += ' Not counted, because you looked at the solution.';
+    else {
+      const k = trainKey(), s = trainStats[k] || (trainStats[k] = { n: 0, best: 0, last: [] });
+      if (!s.best || t < s.best) { s.best = Math.round(t); if (s.n) msg += ' New best!'; }
+      s.n++;
+      s.last = [...s.last, Math.round(t)].slice(-12);
+      saveTrainer();
+    }
+    $('trStatus').textContent = msg + (trainer.auto ? ' Next case coming up…' : ' Press Enter for the next one.');
+    renderTrainerStats();
+    if (trainer.auto) trainer.timer = setTimeout(() => { if (trainer.phase === 'done' && !$('panel-trainer').hidden) dealCase(); }, 1800);
+  }
+
+  function showTrainerSolution() {
+    if (trainer.phase !== 'ready' && trainer.phase !== 'running') return;
+    const st = readState(), now = stageNow(st);
+    const parts = now === 7 ? null : solveParts(st, now);
+    const box = $('trSolution');
+    box.innerHTML = '';
+    if (!parts) return;
+    trainer.helped = true;
+    if (now !== trainer.stage) {
+      const p = document.createElement('p');
+      p.className = 'lesson-empty';
+      p.textContent = `An earlier step came undone, so this finishes the ${STAGES[now].name.toLowerCase()} first.`;
+      box.appendChild(p);
+    }
+    renderParts(box, parts);
+    box.hidden = false;
+    box.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+  }
+
+  function renderTrainerStats() {
+    const s = trainStats[trainKey()] || { n: 0, best: 0, last: [] };
+    const five = s.last.slice(-5);
+    $('trReps').textContent = s.n;
+    $('trBest').textContent = s.best ? fmt(s.best) : '–';
+    $('trAvg').textContent = five.length === 5 ? fmt(five.reduce((a, b) => a + b, 0) / 5) : '–';
+  }
+  function renderTrainer() {
+    const cases = TRAIN_CASES[trainer.stage];
+    $('trStage').value = trainer.stage;
+    $('trCaseWrap').hidden = !cases;
+    $('trCase').innerHTML = '<option value="">Any case</option>' + (cases || []).map(c => `<option value="${c[0]}">${c[1]}</option>`).join('');
+    $('trCase').value = trainer.kase;
+    $('trAlg').innerHTML = TRAIN_MOVES[trainer.stage].map(p => `<p>${p}</p>`).join('');
+    $('trAuto').checked = trainer.auto;
+    renderTrainerStats();
+  }
+
+  STAGES.forEach((s, i) => $('trStage').insertAdjacentHTML('beforeend', `<option value="${i}">${i + 1}. ${s.name}</option>`));
+  $('trStage').addEventListener('change', e => {
+    trainer.stage = +e.target.value;
+    trainer.kase = '';
+    saveTrainer();
+    renderTrainer();
+    dealCase();
+  });
+  $('trCase').addEventListener('change', e => {
+    trainer.kase = e.target.value;
+    saveTrainer();
+    renderTrainerStats();
+    dealCase();
+  });
+  $('trAuto').addEventListener('change', e => { trainer.auto = e.target.checked; saveTrainer(); });
+  $('trDealBtn').addEventListener('click', dealCase);
+  $('trSolutionBtn').addEventListener('click', showTrainerSolution);
+  $('trLessonBtn').addEventListener('click', () => { goToStep(STAGES[trainer.stage].lesson); showTab('lesson'); });
+  renderTrainer();
+  try { if (localStorage.getItem('deskcube-tab') === 'trainer' && !isSpeed()) showTab('trainer'); } catch (e) {}
 
   // ---------- Buttons & keyboard ----------
   const pad = $('pad');
@@ -2457,7 +2701,17 @@
       return;
     }
     if (e.key === '?') { e.preventDefault(); toggleKeys(); return; }
-    if (keyLayout !== 'speed' && (e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); showTab('practice'); getHint(); return; }
+    const inTrainer = !$('panel-trainer').hidden && !isSpeed();
+    if (inTrainer && e.key === 'Enter' && !e.target.closest('button, a, summary')) {
+      e.preventDefault();
+      if (trainer.phase !== 'running') dealCase();
+      return;
+    }
+    if (keyLayout !== 'speed' && (e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      if (inTrainer) showTrainerSolution(); else { showTab('practice'); getHint(); }
+      return;
+    }
     if (e.key === 'Escape' && !$('keysPanel').hidden && overlayMQ.matches) { setKeysOpen(false, false); return; }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
