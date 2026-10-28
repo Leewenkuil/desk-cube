@@ -264,6 +264,31 @@ img { max-width: 100%; }
   dialog.acct.wide { width: min(600px, calc(100vw - 32px)); }
   .acct-solves { display: flex; flex-direction: column; gap: 10px; }
   .acct-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .prog { display: flex; flex-direction: column; gap: 6px; }
+  .prog-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .prog-head h4 { margin: 0; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  .prog-range button { padding: 4px 10px; font-size: 0.78rem; }
+  .prog-sum { margin: 0; font-size: 0.9rem; }
+  .prog-legend { display: flex; gap: 16px; font-size: 0.78rem; color: var(--muted); }
+  .prog-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .prog-key-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); opacity: 0.6; }
+  .prog-key-line { width: 16px; height: 2px; border-radius: 1px; background: var(--accent); }
+  .prog-plot { position: relative; }
+  #progSvg { display: block; width: 100%; height: 180px; overflow: visible; }
+  #progSvg .grid { stroke: var(--line); stroke-width: 1; }
+  #progSvg .tick { fill: var(--muted); font: 11px var(--font-mono); font-variant-numeric: tabular-nums; }
+  #progSvg .solve { fill: var(--muted); fill-opacity: 0.55; stroke: var(--surface); stroke-width: 1.5; }
+  #progSvg .ao5 { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  #progSvg .cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+  #progSvg .hl { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+  #progSvg .hl.dot { fill: var(--fg); }
+  .prog-tip {
+    position: absolute; top: 0; pointer-events: none; background: var(--surface); color: var(--fg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 0.78rem; line-height: 1.4;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  .prog-tip b { font-weight: 600; }
+  .prog-tip span { color: var(--muted); }
   .acct-list-wrap { max-height: 280px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
   .acct-list { width: 100%; border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
   .acct-list th {
@@ -700,6 +725,24 @@ img { max-width: 100%; }
       <div class="acct-solves" id="acctSolves" hidden>
         <div class="stats acct-tiles" id="acctTiles"></div>
         <p class="acct-note">Ao5 and Ao12 are your current averages of the last 5 and 12 solves, leaving out the fastest and slowest of each set.</p>
+        <section class="prog" id="progBox" hidden>
+          <div class="prog-head">
+            <h4>Progress</h4>
+            <div class="mode-switch prog-range" role="radiogroup" aria-label="Solves shown">
+              <button role="radio" id="progLast" aria-checked="true">Last 50</button>
+              <button role="radio" id="progAll" aria-checked="false">All</button>
+            </div>
+          </div>
+          <p class="prog-sum" id="progSum"></p>
+          <div class="prog-legend" aria-hidden="true">
+            <span><i class="prog-key-dot"></i>Each solve</span>
+            <span><i class="prog-key-line"></i>Average of 5</span>
+          </div>
+          <div class="prog-plot" id="progPlot">
+            <svg id="progSvg" role="img" aria-labelledby="progSum"></svg>
+            <div class="prog-tip" id="progTip" hidden></div>
+          </div>
+        </section>
         <div class="acct-list-wrap" id="acctListWrap">
           <table class="acct-list">
             <thead><tr><th>#</th><th>Time</th><th>Moves</th><th>When</th><th><span class="sr-only">Replay</span></th><th><span class="sr-only">Delete</span></th></tr></thead>
@@ -3344,6 +3387,109 @@ img { max-width: 100%; }
       body.appendChild(tr);
     });
     $('acctListWrap').hidden = !n;
+    renderProgress();
+  }
+
+  // Progress chart: each finished solve as a faint dot, the rolling average of 5 as the line.
+  // Oldest on the left. DNFs leave a gap in the dots; two DNFs in a set of five break the line.
+  const prog = { range: 'last', pts: [] };
+  try { if (localStorage.getItem('deskcube-progrange') === 'all') prog.range = 'all'; } catch (e) {}
+  function renderProgress() {
+    const all = acct.remote.slice().reverse();
+    const box = $('progBox');
+    box.hidden = all.filter(s => !s.dnf).length < 3;
+    if (box.hidden) return;
+    $('progLast').setAttribute('aria-checked', prog.range === 'last');
+    $('progAll').setAttribute('aria-checked', prog.range === 'all');
+    const start = prog.range === 'last' ? Math.max(0, all.length - 50) : 0;
+    const val = s => s.dnf ? Infinity : s.time_ms;
+    const pts = [];
+    for (let i = start; i < all.length; i++) {
+      const s = all[i];
+      // The average of the five solves ending here (newest first, as aoN expects).
+      const ao5 = i >= 4 ? aoN(all.slice(i - 4, i + 1).reverse().map(val), 5) : null;
+      pts.push({ n: i + 1, s, time: s.dnf ? null : s.time_ms, ao5: ao5 === Infinity ? null : ao5 });
+    }
+    prog.pts = pts;
+    const svg = $('progSvg'), W = Math.max(280, svg.clientWidth || 560), H = 180;
+    const ml = 44, mr = 10, mt = 8, mb = 22, pw = W - ml - mr, ph = H - mt - mb;
+    const vals = pts.flatMap(p => [p.time, p.ao5]).filter(v => v !== null);
+    const lo = Math.min(...vals) / 1000, hi = Math.max(...vals) / 1000;
+    // About four gridlines at a round number of seconds.
+    const step = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800].find(st => (hi - lo) / st <= 4) || 3600;
+    const y0 = Math.floor(lo / step) * step, y1 = Math.max(y0 + step, Math.ceil(hi / step) * step);
+    const x = i => ml + (pts.length === 1 ? pw / 2 : i / (pts.length - 1) * pw);
+    const y = ms => mt + ph - (ms / 1000 - y0) / (y1 - y0) * ph;
+    const secs = v => `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`;
+    let out = '';
+    for (let v = y0; v <= y1 + 1e-9; v += step) {
+      const yy = y(v * 1000).toFixed(1);
+      out += `<line class="grid" x1="${ml}" x2="${W - mr}" y1="${yy}" y2="${yy}"/><text class="tick" x="${ml - 6}" y="${yy}" text-anchor="end" dominant-baseline="middle">${secs(v)}</text>`;
+    }
+    for (const i of [...new Set([0, Math.round((pts.length - 1) / 2), pts.length - 1])]) {
+      const anchor = i === 0 ? 'start' : i === pts.length - 1 ? 'end' : 'middle';
+      out += `<text class="tick" x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${anchor}">#${pts[i].n}</text>`;
+    }
+    pts.forEach((p, i) => { if (p.time !== null) out += `<circle class="solve" cx="${x(i).toFixed(1)}" cy="${y(p.time).toFixed(1)}" r="4"/>`; });
+    let d = '', pen = false;
+    pts.forEach((p, i) => {
+      if (p.ao5 === null) { pen = false; return; }
+      d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.ao5).toFixed(1)}`;
+      pen = true;
+    });
+    if (d) out += `<path class="ao5" d="${d}"/>`;
+    out += '<g id="progHover"></g>';
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = out;
+    Object.assign(prog, { x, y, W, ml, pw });
+    // One sentence that says what the chart shows.
+    const avgs = pts.filter(p => p.ao5 !== null);
+    let sum;
+    if (avgs.length >= 2) {
+      const a = avgs[0].ao5, b = avgs[avgs.length - 1].ao5, pct = Math.round(Math.abs(a - b) / a * 100);
+      sum = `Your average of 5 went from ${fmt(a)} to ${fmt(b)}` + (pct ? ` (${pct}% ${b < a ? 'faster' : 'slower'})` : '') + ` over solves ${avgs[0].n}–${avgs[avgs.length - 1].n}.`;
+    } else if (avgs.length === 1) {
+      sum = `Your first average of 5 is ${fmt(avgs[0].ao5)}. Keep going to see the line.`;
+    } else {
+      const done = pts.filter(p => p.time !== null);
+      sum = `Your solves went from ${fmt(done[0].time)} to ${fmt(done[done.length - 1].time)}. The average line appears after 5 solves.`;
+    }
+    $('progSum').textContent = sum;
+    $('progTip').hidden = true;
+  }
+  function progHover(e) {
+    if (!prog.pts.length || !prog.x) return;
+    const svg = $('progSvg'), r = svg.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width * prog.W;
+    const i = Math.max(0, Math.min(prog.pts.length - 1, Math.round((px - prog.ml) / prog.pw * (prog.pts.length - 1))));
+    const p = prog.pts[i], xx = prog.x(i).toFixed(1);
+    let g = `<line class="cross" x1="${xx}" x2="${xx}" y1="8" y2="158"/>`;
+    if (p.time !== null) g += `<circle class="hl dot" cx="${xx}" cy="${prog.y(p.time).toFixed(1)}" r="5"/>`;
+    if (p.ao5 !== null) g += `<circle class="hl" cx="${xx}" cy="${prog.y(p.ao5).toFixed(1)}" r="5"/>`;
+    $('progHover').innerHTML = g;
+    const tip = $('progTip');
+    const when = new Date(p.s.solved_at).toLocaleDateString([], { day: 'numeric', month: 'short' });
+    tip.innerHTML = '';
+    for (const [k, v] of [['Solve', `#${p.n} · ${when}`], ['Time', p.time === null ? 'DNF' : fmt(p.time)], ['Ao5', p.ao5 === null ? '–' : fmt(p.ao5)]]) {
+      const row = document.createElement('div');
+      row.innerHTML = '<span></span> <b></b>';
+      row.firstChild.textContent = k;
+      row.lastChild.textContent = v;
+      tip.appendChild(row);
+    }
+    tip.hidden = false;
+    // Keep the tooltip beside the crosshair, on whichever side has room.
+    const cx = prog.x(i) / prog.W * r.width;
+    tip.style.left = cx > r.width / 2 ? `${cx - tip.offsetWidth - 12}px` : `${cx + 12}px`;
+  }
+  $('progSvg').addEventListener('pointermove', progHover);
+  $('progSvg').addEventListener('pointerleave', () => { $('progTip').hidden = true; const h = $('progHover'); if (h) h.innerHTML = ''; });
+  for (const [id, range] of [['progLast', 'last'], ['progAll', 'all']]) {
+    $(id).addEventListener('click', () => {
+      prog.range = range;
+      try { localStorage.setItem('deskcube-progrange', range); } catch (e) {}
+      renderProgress();
+    });
   }
   // Replays are fetched only when asked for, so the list stays light.
   async function watchSaved(s, num) {
