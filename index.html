@@ -489,6 +489,9 @@
   /* One row per move: picture, letter and name, then the two keys. */
   .kp-table { display: flex; flex-direction: column; gap: 3px; }
   .kp-rows { display: flex; flex-direction: column; gap: 2px; }
+  .kp-rows:empty { display: none; }
+  .kp-sub { margin: 4px 0 1px; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .kp-sub span { font-weight: 400; text-transform: none; letter-spacing: 0; }
   /* Groups (faces, middle layers, whole cube) are split by a thin line rather than headings, to save height. */
   .kp-rows + .kp-rows { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 2px; }
   .kp-cols, .kp-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) 72px 72px; gap: 6px; align-items: center; }
@@ -652,18 +655,22 @@
       <div class="kp-cols" aria-hidden="true"><span></span><span>Move</span><span>Clockwise</span><span>Other way</span></div>
       <div id="kpFaces" class="kp-rows" aria-label="Faces"></div>
       <div id="kpSlices" class="kp-rows" aria-label="Middle layers"></div>
+      <div id="kpWide" class="kp-rows" aria-label="Wide turns"></div>
+      <div id="kpInner" class="kp-rows" aria-label="Inner layers"></div>
       <div id="kpWhole" class="kp-rows" aria-label="Whole cube"></div>
     </div>
     <div class="kp-group">
       <h3>Other keys</h3>
       <ul class="kp-other">
+        <li class="four-only" title="Hold Space and press a face letter: that face and the layer inside it turn together"><span class="kp-keys"><kbd>Space</kbd>+<kbd>R</kbd></span><span>Wide</span></li>
+        <li class="four-only" title="Hold 2 and press a face letter: only the layer just inside that face turns"><span class="kp-keys"><kbd>2</kbd>+<kbd>R</kbd></span><span>Inner</span></li>
         <li title="Undo the last turn (also Ctrl+Z)"><span class="kp-keys"><kbd>⌫</kbd></span><span>Undo</span></li>
         <li title="Flip the cube upside down (x2)"><span class="kp-keys"><kbd>V</kbd></span><span>Flip</span></li>
         <li title="Show or hide this panel"><span class="kp-keys"><kbd>?</kbd></span><span>Panel</span></li>
         <li title="Turn the whole cube left / right (y, y′)"><span class="kp-keys"><kbd>←</kbd><kbd>→</kbd></span><span>Turn</span></li>
         <li title="Tip the whole cube up / down (x, x′)"><span class="kp-keys"><kbd>↑</kbd><kbd>↓</kbd></span><span>Tip</span></li>
         <li title="Zoom in / out (or scroll); 0 resets"><span class="kp-keys"><kbd>+</kbd><kbd>−</kbd></span><span>Zoom</span></li>
-        <li class="learn-only" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
+        <li class="learn-only three-only" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
     </div>
   </nav>
   <dialog class="confirm" id="resetDialog" aria-labelledby="resetTitle">
@@ -2079,18 +2086,21 @@
   const iso = p => [(p.x - p.z) * 0.866, (p.x + p.z) * 0.5 - p.y];
   const pts = list => list.map(p => iso(p).map(n => n.toFixed(3)).join(',')).join(' ');
 
-  function moveIcon(m) {
-    const mv = decode(m, HOME, 3), { axis, layer, angle } = mv;
+  // Drawn for a cube of size `size`, scaled so every size fills the same box.
+  function moveIcon(m, size = 3) {
+    const mv = decode(m, HOME, size), { axis, layer, angle } = mv;
     const faces = [[V(0, 1, 0), V(1, 0, 0), V(0, 0, 1)], [V(0, 0, 1), V(1, 0, 0), V(0, 1, 0)], [V(1, 0, 0), V(0, 0, 1), V(0, 1, 0)]];
+    const H = (size - 1) / 2, k = 3 / size;
     let out = '';
     for (const [n, e1, e2] of faces) {
-      const at = (i, j, s) => n.clone().multiplyScalar(1.5).addScaledVector(e1, i * s).addScaledVector(e2, j * s);
-      out += `<polygon class="body" points="${pts([at(-1, -1, 1.56), at(1, -1, 1.56), at(1, 1, 1.56), at(-1, 1, 1.56)])}"/>`;
-      for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
-        const cubie = n.clone().addScaledVector(e1, i).addScaledVector(e2, j);
-        const on = turnsPiece(mv, Math.round(cubie[axis]));
+      const at = (i, j, s) => n.clone().multiplyScalar((H + 0.5) * k).addScaledVector(e1, i * s * k).addScaledVector(e2, j * s * k);
+      const edge = (H + 0.56) / H;
+      out += `<polygon class="body" points="${pts([at(-H, -H, edge), at(H, -H, edge), at(H, H, edge), at(-H, H, edge)])}"/>`;
+      for (let i = -H; i <= H; i++) for (let j = -H; j <= H; j++) {
+        const cubie = n.clone().multiplyScalar(H).addScaledVector(e1, i).addScaledVector(e2, j);
+        const on = turnsPiece(mv, cubie[axis]);
         const c = at(i, j, 1);
-        const corner = (a, b) => c.clone().addScaledVector(e1, a * 0.42).addScaledVector(e2, b * 0.42);
+        const corner = (a, b) => c.clone().addScaledVector(e1, a * 0.42 * k).addScaledVector(e2, b * 0.42 * k);
         out += `<polygon class="st${on ? ' on' : ''}" points="${pts([corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)])}"/>`;
       }
     }
@@ -2098,7 +2108,7 @@
     const n = axis === 'z' ? V(0, 1, 0) : V(0, 0, 1);
     const a = V(0, 0, 0); a[axis] = 1;
     const t = new THREE.Vector3().crossVectors(a, n).multiplyScalar(Math.sign(angle));
-    const mid = n.clone().multiplyScalar(1.5).addScaledVector(a, layer === null ? 0 : layer);
+    const mid = n.clone().multiplyScalar(1.5).addScaledVector(a, layer === null ? 0 : layer * k);
     const [x1, y1] = iso(mid.clone().addScaledVector(t, -1.25)), [x2, y2] = iso(mid.clone().addScaledVector(t, 1.25));
     const len = Math.hypot(x2 - x1, y2 - y1), dx = (x2 - x1) / len, dy = (y2 - y1) / len;
     const bx = x2 - dx * 0.62, by = y2 - dy * 0.62;
@@ -2108,6 +2118,7 @@
     return `<svg class="kp-icon" viewBox="-3.2 -3.3 6.4 6.6" aria-hidden="true">${out}</svg>`;
   }
 
+  const FACE_WORD = { U: 'top', D: 'bottom', L: 'left', R: 'right', F: 'front', B: 'back' };
   const KEY_INFO = [
     ['kpFaces', 'U', 'Top face'], ['kpFaces', 'D', 'Bottom face'], ['kpFaces', 'L', 'Left face'],
     ['kpFaces', 'R', 'Right face'], ['kpFaces', 'F', 'Front face'], ['kpFaces', 'B', 'Back face'],
@@ -2117,24 +2128,44 @@
     ['kpSlices', 'f', 'Front two layers together (F and S), a "wide" turn'],
     ['kpWhole', 'x', 'Whole cube, turns like R'], ['kpWhole', 'y', 'Whole cube, turns like U'], ['kpWhole', 'z', 'Whole cube, turns like F'],
   ];
-  // Letters layout: each turn's key is its letter, except the wide front turn f, which is on W.
+  // The 4×4 adds wide turns (outer two layers) and single inner layers for every face.
+  const KEY_INFO_4 = [
+    ...KEY_INFO.filter(r => r[0] === 'kpFaces'),
+    ...'UDLRFB'.split('').map(F => ['kpWide', F.toLowerCase(), `The ${FACE_WORD[F]} two layers together (${F} and 2${F}), a "wide" turn`]),
+    ...'UDLRFB'.split('').map(F => ['kpInner', '2' + F, `Only the inner layer just inside ${F} (turns like ${F})`]),
+    ...KEY_INFO.filter(r => r[0] === 'kpWhole'),
+  ];
+  // Letters layout: each turn's key is its letter (the wide front turn f is also on W). Holding Space
+  // makes a face turn wide, and on the 4×4 holding 2 turns just the inner layer.
   const letterKey = m => m[0] === 'f' ? 'W' : m[0].toUpperCase();
   // Short names for the compact rows; the full name is the row's tooltip.
   const SHORT_NAME = {
     U: 'Top', D: 'Bottom', L: 'Left', R: 'Right', F: 'Front', B: 'Back',
     M: 'Middle (like L)', E: 'Equator (like D)', S: 'Standing (like F)', f: 'Front 2 layers',
+    u: 'Top 2 layers', d: 'Bottom 2 layers', l: 'Left 2 layers', r: 'Right 2 layers', b: 'Back 2 layers',
+    '2U': 'Inner, by U', '2D': 'Inner, by D', '2L': 'Inner, by L', '2R': 'Inner, by R', '2F': 'Inner, by F', '2B': 'Inner, by B',
     x: 'Tip, like R', y: 'Spin, like U', z: 'Roll, like F',
   };
-  for (const [group, k, name] of KEY_INFO) {
+  // Rebuilt when the cube size changes: the pictures show that size, and only its turns are listed.
+  function renderControlRows() {
+    for (const id of ['kpFaces', 'kpSlices', 'kpWide', 'kpInner', 'kpWhole']) $(id).innerHTML = '';
+    if (cube.n === 4) {
+      $('kpWide').innerHTML = '<div class="kp-sub">Wide <span>· outer two layers · hold Space</span></div>';
+      $('kpInner').innerHTML = '<div class="kp-sub">Inner layers <span>· hold 2</span></div>';
+    }
+    const rows = cube.n === 4 ? KEY_INFO_4 : cube.n === 2 ? KEY_INFO.filter(r => r[0] !== 'kpSlices') : KEY_INFO;
+    for (const [group, k, name] of rows) {
     const row = document.createElement('div');
-    row.className = 'kp-row' + ('MES'.includes(k) ? ' three-only' : '');
+    row.className = 'kp-row';
     row.title = name;
-    row.innerHTML = `${moveIcon(k)}<div class="kp-name"><b>${k}</b><span>${SHORT_NAME[k]}</span></div>
+    row.innerHTML = `${moveIcon(k, cube.n)}<div class="kp-name"><b>${k}</b><span>${SHORT_NAME[k]}</span></div>
       <button class="kp-move" id="kp-${k}" aria-label="${k}, clockwise" title="${k}: ${name}, clockwise"><span class="kp-keys" data-move="${k}"></span></button>
       <button class="kp-move" id="kp-${k}p" aria-label="${k}', counter-clockwise" title="${k}': the other way"><span class="kp-keys" data-move="${k}'"></span></button>`;
     row.querySelector(`#kp-${k}`).addEventListener('click', () => userMove(k));
     row.querySelector(`#kp-${k}p`).addEventListener('click', () => userMove(k + "'"));
     $(group).appendChild(row);
+    }
+    renderKeyLabels();
   }
 
   // Two-handed speed layout: the common cube-timer arrangement, one key per turn, no Shift.
@@ -2147,13 +2178,16 @@
   const kcap = k => `<kbd>${k === ';' ? ';' : k.toUpperCase()}</kbd>`;
   function renderKeyLabels() {
     for (const el of document.querySelectorAll('.kp-keys[data-move]')) {
-      const m = el.dataset.move;
+      let m = el.dataset.move, hold = '';
+      // Inner layers: hold 2. Wide turns other than f: hold Space with the face's own key.
+      if (m[0] === '2') { hold = '<kbd title="Hold 2">2</kbd>'; m = m.slice(1); }
+      else if ('udlrb'.includes(m[0])) { hold = '<kbd title="Hold Space">Space</kbd>'; m = m[0].toUpperCase() + m.slice(1); }
       if (keyLayout === 'letters') {
-        const key = letterKey(m);
-        el.innerHTML = m.length > 1 ? `<kbd title="Shift">⇧</kbd><kbd>${key}</kbd>` : `<kbd>${key}</kbd>`;
+        const key = letterKey(m), prime = m.endsWith("'");
+        el.innerHTML = hold + (prime ? `<kbd title="Shift">⇧</kbd><kbd>${key}</kbd>` : `<kbd>${key}</kbd>`);
       } else {
         const keys = Object.keys(SPEED_KEYS).filter(k => SPEED_KEYS[k] === m);
-        el.innerHTML = keys.length ? keys.map(kcap).join('') : '<span class="kp-cap">click</span>';
+        el.innerHTML = keys.length ? hold + keys.map(kcap).join('') : '<span class="kp-cap">click</span>';
       }
     }
     renderSettingsSum();
@@ -2246,7 +2280,7 @@
   $('layoutLetters').addEventListener('click', () => setLayout('letters'));
   $('layoutSpeed').addEventListener('click', () => setLayout('speed'));
   try { keyLayout = localStorage.getItem('deskcube-layout') === 'speed' ? 'speed' : 'letters'; } catch (e) {}
-  renderKeyLabels();
+  renderControlRows();
 
   const overlayMQ = window.matchMedia('(max-width: 1099px)');
   function setKeysOpen(open, remember) {
@@ -2408,6 +2442,7 @@
     try { localStorage.setItem('deskcube-size', String(n)); } catch (e) {}
     if (n !== 3) showTab('practice');
     placeFaceLabels();
+    renderControlRows();
     resize();
     // Records are per size.
     if (acct && acct.user) { if (acct.loaded) useAccountStats(); }
@@ -3088,14 +3123,14 @@
 
   // ---------- Buttons & keyboard ----------
   const pad = $('pad');
-  for (const k of ['U', 'D', 'L', 'R', 'F', 'B', 'u', 'd', 'l', 'r', 'f', 'b', 'M', 'E', 'S', 'x', 'y', 'z']) {
+  for (const k of ['U', 'D', 'L', 'R', 'F', 'B', 'u', 'd', 'l', 'r', 'f', 'b', '2U', '2D', '2L', '2R', '2F', '2B', 'M', 'E', 'S', 'x', 'y', 'z']) {
     for (const m of [k, k + "'"]) {
       const b = document.createElement('button');
       if ('MES'.includes(k)) b.className = 'three-only';
-      if ('udlrfb'.includes(k)) b.className = 'four-only';
+      if ('udlrfb'.includes(k) || k[0] === '2') b.className = 'four-only';
       b.textContent = m;
       b.id = 'pad-' + k + (m.length > 1 ? 'p' : '');
-      b.title = LETTERS[k][1] === null ? 'Rotate the whole cube' : LETTERS[k][1] === 'wide' ? `Turn the outer two layers (${m[0].toUpperCase()}w${m.slice(1)})` : 'Turn ' + m;
+      b.title = k[0] === '2' ? `Turn only the inner layer next to ${k[1]}` : LETTERS[k][1] === null ? 'Rotate the whole cube' : LETTERS[k][1] === 'wide' ? `Turn the outer two layers (${m[0].toUpperCase()}w${m.slice(1)})` : 'Turn ' + m;
       b.addEventListener('click', () => userMove(m));
       pad.appendChild(b);
     }
@@ -3139,8 +3174,26 @@
   $('zoomOut').addEventListener('click', () => setZoom(view.zoom * 1.2));
   $('zoomLevel').addEventListener('click', () => setZoom(1));
 
+  // Keys held down as modifiers: Space (wide turns) and 2 (inner layers on the 4×4).
+  const held = new Set();
+  window.addEventListener('keyup', e => held.delete(e.code));
+  window.addEventListener('blur', () => held.clear());
+  // A face turn becomes wide while Space is held, or the inner layer while 2 is held.
+  function withHeld(m) {
+    if (!/^[UDLRFB]'?$/.test(m)) return m;
+    if (held.has('Digit2') && cube.n === 4) return '2' + m;
+    if (held.has('Space')) return m[0].toLowerCase() + m.slice(1);
+    return m;
+  }
   window.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select')) return;
+    if ((e.code === 'Space' || e.code === 'Digit2') && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('dialog[open]')) {
+      // Space still presses other focused buttons and links; on the turn buttons it's the modifier.
+      if (e.code === 'Space' && e.target.closest && e.target.closest('button, a, summary') && !e.target.closest('#pad, .kp-move')) return;
+      e.preventDefault();
+      held.add(e.code);
+      return;
+    }
     if (document.querySelector('dialog[open]')) return;
     if (paused) {
       if (e.key === 'Enter' && e.target === document.body) { e.preventDefault(); resumeSolve(); }
@@ -3172,7 +3225,7 @@
     if (e.key === '0') { e.preventDefault(); setZoom(1); return; }
     if (keyLayout === 'speed') {
       const m = SPEED_KEYS[e.key.toLowerCase()];
-      if (m) { e.preventDefault(); if (!e.repeat) userMove(m); }
+      if (m) { e.preventDefault(); if (!e.repeat) userMove(withHeld(m)); }
       return;
     }
     const k = e.key.toLowerCase();
@@ -3182,7 +3235,7 @@
     else if (k === 'w') base = 'f';
     if (!base) return;
     e.preventDefault();
-    userMove(e.shiftKey ? base + "'" : base);
+    userMove(withHeld(e.shiftKey ? base + "'" : base));
   });
 
   // ---------- Solve replays ----------
