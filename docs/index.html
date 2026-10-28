@@ -894,23 +894,29 @@ img { max-width: 100%; }
     return { U, D: neg(U), F, B: neg(F), R, L: neg(R) };
   }
   // Each letter: the face it follows, and which layer it turns (null = whole cube).
+  // Lowercase face letters are "wide" turns: that face plus the middle slice next to it.
   const LETTERS = {
     U: ['U', 'face'], D: ['D', 'face'], R: ['R', 'face'], L: ['L', 'face'], F: ['F', 'face'], B: ['B', 'face'],
     M: ['L', 0], E: ['D', 0], S: ['F', 0], x: ['R', null], y: ['U', null], z: ['F', null],
+    u: ['U', 'wide'], d: ['D', 'wide'], r: ['R', 'wide'], l: ['L', 'wide'], f: ['F', 'wide'], b: ['B', 'wide'],
   };
   function decode(m, fr) {
     const [faceKey, layer] = LETTERS[m[0]];
     const face = fr[faceKey];
     const turns = m[1] === "'" ? -1 : m[1] === '2' ? 2 : 1;
-    return { axis: face.axis, layer: layer === 'face' ? face.sign : layer, angle: -face.sign * turns * Math.PI / 2 };
+    const out = { axis: face.axis, layer: layer === 'face' || layer === 'wide' ? face.sign : layer, angle: -face.sign * turns * Math.PI / 2 };
+    if (layer === 'wide') out.wide = true;
+    return out;
   }
-  function labelFor(axis, layer, sign, fr) {
-    for (const k of 'UDRLFBMES') {
+  function labelFor(axis, layer, sign, fr, wide) {
+    for (const k of wide ? 'udrlfb' : 'UDRLFBMES') {
       const [faceKey, l] = LETTERS[k], face = fr[faceKey];
-      if (face.axis !== axis || (l === 'face' ? face.sign : l) !== layer) continue;
+      if (face.axis !== axis || (l === 'face' || l === 'wide' ? face.sign : l) !== layer) continue;
       return sign === -face.sign ? k : k + "'";
     }
   }
+  // Does a turn move the piece at this coordinate (along the turn's axis)?
+  const turnsPiece = (m, p) => m.layer === null || p === m.layer || (!!m.wide && p === 0);
 
   // ---------- Turn queue & animation ----------
   let queue = [], anim = null;
@@ -924,7 +930,7 @@ img { max-width: 100%; }
     const { axis, layer, angle } = item;
     pivot.rotation.set(0, 0, 0);
     pivot.updateMatrixWorld();
-    const sel = cubies.filter(c => layer === null || Math.round(c.position[axis]) === layer);
+    const sel = cubies.filter(c => turnsPiece(item, Math.round(c.position[axis])));
     for (const c of sel) pivot.attach(c);
     const base = item.fast ? 55 : 170;
     const dur = reduceMotion ? 0 : base * (Math.abs(angle) > Math.PI / 2 + 0.01 ? 1.4 : 1);
@@ -1018,7 +1024,7 @@ img { max-width: 100%; }
   }
 
   function onMoveDone(item) {
-    if (item.layer === null || item.layer === 0) paintMaps();   // only these move the centers
+    if (item.layer === null || item.layer === 0 || item.wide) paintMaps();   // only these move the centers
     if (item.quiet) return;
     if (item.scramble) {
       if (!queue.some(q => q.scramble)) {
@@ -1258,10 +1264,11 @@ img { max-width: 100%; }
       done: 'The yellow cross is made. The corners and side colors don\'t matter yet.',
       body: [
         '<b>Goal:</b> a yellow plus sign on top. Ignore the corners and the side colors for now.',
-        'Look at the top edges and use <code class="mv">F R U R\' U\' F\'</code>:',
-        '<b>Only the yellow center (a dot):</b> do it once from any side to get an L shape.',
-        '<b>An L shape:</b> hold it at the back and left, like the hands of a clock at nine o\'clock, and do it once to get a line.',
-        '<b>A line:</b> hold it left to right and do it once more for the cross.',
+        'Look at the yellow stickers on the top edges:',
+        '<b>An L shape:</b> hold it at the back and left, like the hands of a clock at nine o\'clock. Do <code class="mv">f R U R\' U\' f\'</code> and the cross is done in one go.',
+        'The lowercase <code class="mv">f</code> means turn the <b>front two layers</b> together: the front face and the middle slice behind it, grabbed as one, the same way as <code class="mv">F</code>. On the keyboard that is <kbd>W</kbd>, and <kbd>Shift</kbd>+<kbd>W</kbd> for <code class="mv">f\'</code> (in the speed layout, <kbd>U</kbd> and <kbd>R</kbd>).',
+        '<b>A line:</b> hold it left to right and do <code class="mv">F R U R\' U\' F\'</code> (just the front face this time) for the cross.',
+        '<b>Only the yellow center (a dot):</b> do <code class="mv">F R U R\' U\' F\'</code> once from any side to get an L shape, then do the L case.',
       ],
     },
     {
@@ -1403,7 +1410,11 @@ img { max-width: 100%; }
     else if (stage === 2) caption = !t ? 'Set up the next edge'
       : last ? `Put the ${names} edge into the middle layer`
       : 'First, pop the wrong edge out of the middle layer';
-    else if (stage === 3) caption = `Yellow on top: ${yellowShape(before, L)} → ${yellowShape(after, L)}`;
+    else if (stage === 3) {
+      const from = yellowShape(before, L), wide = part.moves.some(m => m.wide);
+      caption = `Yellow on top: ${from} → ${yellowShape(after, L)}`
+        + (wide ? ' (L at the back left, turning the front two layers with f)' : from === 'line' ? ' (line held left to right)' : '');
+    }
     else if (stage === 4) caption = part.moves.length === 1 ? 'Turn the top layer to line the edges up' : 'Swap the front and left top edges';
     else if (stage === 5) {
       const home = stageCounts(after, L)[5];
@@ -1550,7 +1561,7 @@ img { max-width: 100%; }
   const pts = list => list.map(p => iso(p).map(n => n.toFixed(3)).join(',')).join(' ');
 
   function moveIcon(m) {
-    const { axis, layer, angle } = decode(m, HOME);
+    const mv = decode(m, HOME), { axis, layer, angle } = mv;
     const faces = [[V(0, 1, 0), V(1, 0, 0), V(0, 0, 1)], [V(0, 0, 1), V(1, 0, 0), V(0, 1, 0)], [V(1, 0, 0), V(0, 0, 1), V(0, 1, 0)]];
     let out = '';
     for (const [n, e1, e2] of faces) {
@@ -1558,7 +1569,7 @@ img { max-width: 100%; }
       out += `<polygon class="body" points="${pts([at(-1, -1, 1.56), at(1, -1, 1.56), at(1, 1, 1.56), at(-1, 1, 1.56)])}"/>`;
       for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
         const cubie = n.clone().addScaledVector(e1, i).addScaledVector(e2, j);
-        const on = layer === null || Math.round(cubie[axis]) === layer;
+        const on = turnsPiece(mv, Math.round(cubie[axis]));
         const c = at(i, j, 1);
         const corner = (a, b) => c.clone().addScaledVector(e1, a * 0.42).addScaledVector(e2, b * 0.42);
         out += `<polygon class="st${on ? ' on' : ''}" points="${pts([corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)])}"/>`;
@@ -1584,10 +1595,13 @@ img { max-width: 100%; }
     ['kpSlices', 'M', 'Middle, between L and R (turns like L)'],
     ['kpSlices', 'E', 'Equator, between U and D (turns like D)'],
     ['kpSlices', 'S', 'Standing, between F and B (turns like F)'],
+    ['kpSlices', 'f', 'Front two layers together (F and S), a "wide" turn'],
     ['kpWhole', 'x', 'Whole cube, turns like R'], ['kpWhole', 'y', 'Whole cube, turns like U'], ['kpWhole', 'z', 'Whole cube, turns like F'],
   ];
+  // Letters layout: each turn's key is its letter, except the wide front turn f, which is on W.
+  const letterKey = m => m[0] === 'f' ? 'W' : m[0].toUpperCase();
   for (const [group, k, name] of KEY_INFO) {
-    const key = k.toUpperCase();
+    const key = letterKey(k);
     const card = document.createElement('div');
     card.className = 'kp-card';
     card.innerHTML = `<div class="kp-name"><b>${k}</b><span>${name}</span></div>
@@ -1604,6 +1618,7 @@ img { max-width: 100%; }
   const SPEED_KEYS = {
     i: "R", k: "R'", j: "U", f: "U'", h: "F", g: "F'", d: "L", e: "L'", s: "D", l: "D'", w: "B", o: "B'",
     t: "x", y: "x", b: "x'", n: "x'", ';': "y", a: "y'", p: "z", q: "z'", '5': "M", '6': "M", x: "M'", '.': "M'",
+    u: "f", r: "f'",
   };
   let keyLayout = 'letters';
   const kcap = k => `<kbd>${k === ';' ? ';' : k.toUpperCase()}</kbd>`;
@@ -1611,7 +1626,7 @@ img { max-width: 100%; }
     for (const el of document.querySelectorAll('.kp-keys[data-move]')) {
       const m = el.dataset.move;
       if (keyLayout === 'letters') {
-        const key = m[0].toUpperCase();
+        const key = letterKey(m);
         el.innerHTML = m.length > 1 ? `<kbd>Shift</kbd>+<kbd>${key}</kbd>` : `<kbd>${key}</kbd>`;
       } else {
         const keys = Object.keys(SPEED_KEYS).filter(k => SPEED_KEYS[k] === m);
@@ -1756,11 +1771,11 @@ img { max-width: 100%; }
   const permCache = new Map();
   function permFor(m) {
     const q = ((Math.round(m.angle / (Math.PI / 2)) % 4) + 4) % 4;
-    const key = m.axis + m.layer + ':' + q;
+    const key = m.axis + m.layer + (m.wide ? 'w' : '') + ':' + q;
     if (permCache.has(key)) return permCache.get(key);
     const ai = AX.indexOf(m.axis), perm = new Uint8Array(54);
     SLOTS.forEach((s, i) => {
-      if (m.layer !== null && s.c[ai] !== m.layer) { perm[i] = i; return; }
+      if (!turnsPiece(m, s.c[ai])) { perm[i] = i; return; }
       let c = s.c, n = s.n;
       for (let k = 0; k < q; k++) { c = ROT[m.axis](c); n = ROT[m.axis](n); }
       perm[i] = slotOf(c, n);
@@ -1844,7 +1859,7 @@ img { max-width: 100%; }
   }
   function labelOf(m, fr) {
     const q = Math.round(m.angle / (Math.PI / 2));
-    const base = labelFor(m.axis, m.layer, Math.sign(q), fr);
+    const base = labelFor(m.axis, m.layer, Math.sign(q), fr, m.wide);
     return Math.abs(q) === 2 ? base.replace("'", '') + '2' : base;
   }
   function option(fr, labels) {
@@ -1930,7 +1945,8 @@ img { max-width: 100%; }
       for (const s of L.sides) for (const setup of ['', 'U', "U'", 'U2']) for (const alg of ["U R U' R' U' F' U F", "U' L' U L U F U' F'"]) opts.push(option(makeFrame(L.y, s), setup + ' ' + alg));
       phases = phaseSearch(st, opts, 2, s => { const c = stageCounts(s, L); return c[0] === 4 && c[1] === 4 && c[2] > counts[2]; });
     } else if (stage === 3) {
-      const opts = L.sides.map(s => option(makeFrame(L.y, s), "F R U R' U' F'"));
+      // F R U R' U' F' turns a line into the cross; with the front two layers (f) it turns an L straight into the cross.
+      const opts = [...L.sides.map(s => option(makeFrame(L.y, s), "F R U R' U' F'")), ...L.sides.map(s => option(makeFrame(L.y, s), "f R U R' U' f'"))];
       phases = phaseSearch(st, opts, 3, s => { const c = stageCounts(s, L); return keep(3)(s) && c[3] === 4; });
     } else if (stage === 4) {
       const opts = [...L.sides.map(s => option(makeFrame(L.y, s), "R U R' U R U2 R' U")), ...['U', "U'", 'U2'].map(u => option(makeFrame(L.y, L.sides[0]), u))];
@@ -2210,6 +2226,7 @@ img { max-width: 100%; }
     let base = null;
     if ('udlrfbmes'.includes(k) && k.length === 1) base = k.toUpperCase();
     else if ('xyz'.includes(k) && k.length === 1) base = k;
+    else if (k === 'w') base = 'f';
     if (!base) return;
     e.preventDefault();
     userMove(e.shiftKey ? base + "'" : base);
@@ -2225,7 +2242,7 @@ img { max-width: 100%; }
     const r = n => Math.round(n * 1e4) / 1e4;
     return {
       elapsed: Math.round(elapsed), prevMode, moves: state.moves, scramble: state.scrambleText || '',
-      history: state.history.slice(-500).map(h => ({ label: h.label, axis: h.axis, layer: h.layer, angle: h.angle })),
+      history: state.history.slice(-500).map(h => ({ label: h.label, axis: h.axis, layer: h.layer, angle: h.angle, wide: !!h.wide })),
       cube: cubies.map(c => [c.position.x, c.position.y, c.position.z, c.quaternion.x, c.quaternion.y, c.quaternion.z, c.quaternion.w].map(r)),
       at: Date.now(),
     };
