@@ -1279,6 +1279,8 @@
     if (anim) finishAnim();
     queue = [];
     buildCube();
+    // Swing the camera back to the starting corner view too, like Reset view.
+    flyTo(new THREE.Vector3(1, 1, 1), new THREE.Vector3(0, 1, 0));
     Object.assign(state, { mode: 'idle', moves: 0, history: [], scrambling: false, scrambleText: '', rec: null });
     clearPaused();
     lesson.ready = false;
