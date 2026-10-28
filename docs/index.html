@@ -402,7 +402,7 @@ img { max-width: 100%; }
     padding-block: 16px;
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: 16px;
-    display: flex; flex-direction: column; gap: 14px;
+    display: flex; flex-direction: column; gap: 10px;
   }
   .kp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .kp-head h2 { margin: 0; font-family: var(--font-display); font-size: 1.15rem; letter-spacing: 0.02em; text-transform: none; color: var(--fg); }
@@ -438,8 +438,37 @@ img { max-width: 100%; }
   .kb-key.home { box-shadow: inset 0 -2px 0 var(--muted); }
   .kb-ch { font-size: 0.62rem; color: var(--muted); }
   .kb-mv { font-family: var(--font-mono); font-size: 0.76rem; font-weight: 600; color: var(--accent); }
-  .kp-other { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--muted); }
-  .kp-other li { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .kp-other { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+  .kp-other li { display: flex; gap: 6px; align-items: center; min-width: 0; }
+  .kp-other li.full { grid-column: 1 / -1; line-height: 1.4; }
+  .kp-other kbd { font-size: 0.72rem; }
+  /* Settings fold away so the turns are visible straight away. */
+  .kp-settings { border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+  .kp-settings summary {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px; cursor: pointer;
+    padding: 8px 12px; font-size: 0.85rem; list-style: none;
+  }
+  .kp-settings summary::-webkit-details-marker { display: none; }
+  .kp-settings summary::before { content: "▸"; color: var(--muted); margin-right: -2px; }
+  .kp-settings[open] summary::before { content: "▾"; }
+  .kp-sum-title { font-weight: 600; margin-right: auto; }
+  .kp-sum-val { color: var(--muted); font-size: 0.78rem; text-align: right; }
+  .kp-settings-body { display: flex; flex-direction: column; gap: 12px; padding: 4px 12px 12px; }
+  .kp-hint { margin: 0; color: var(--muted); font-size: 0.8rem; line-height: 1.45; }
+  /* One row per move: picture, letter and name, then the two keys. */
+  .kp-table { display: flex; flex-direction: column; gap: 3px; }
+  .kp-rows { display: flex; flex-direction: column; gap: 2px; }
+  /* Groups (faces, middle layers, whole cube) are split by a thin line rather than headings, to save height. */
+  .kp-rows + .kp-rows { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 2px; }
+  .kp-cols, .kp-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) 72px 72px; gap: 6px; align-items: center; }
+  .kp-cols span { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); text-align: center; }
+  .kp-cols span:nth-child(2) { text-align: left; }
+  .kp-row .kp-icon { width: 26px; height: 27px; }
+  .kp-row .kp-name { min-width: 0; gap: 6px; font-size: 0.8rem; }
+  .kp-row .kp-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kp-row .kp-move { flex-direction: row; justify-content: center; padding: 2px 4px; min-height: 26px; }
+  .kp-row .kp-keys { justify-content: center; flex-wrap: nowrap; gap: 2px; font-size: 0.74rem; }
+  .kp-row .kp-keys kbd { font-size: 0.72rem; padding-inline: 4px; }
 
   .keys-tab {
     position: fixed; z-index: 20; top: 50%; transform: translateY(-50%);
@@ -530,43 +559,47 @@ img { max-width: 100%; }
       <h2>Controls</h2>
       <button class="kp-close" id="keysClose" aria-label="Close controls" title="Close (?)">×</button>
     </div>
-    <div class="kp-layout">
-      <h3>Keyboard layout</h3>
-      <div class="mode-switch" role="radiogroup" aria-label="Keyboard layout">
-        <button role="radio" id="layoutLetters" aria-checked="true">Letters</button>
-        <button role="radio" id="layoutSpeed" aria-checked="false">Speed (two hands)</button>
+    <details class="kp-settings" id="kpSettings">
+      <summary><span class="kp-sum-title">Settings</span><span class="kp-sum-val" id="kpSettingsSum"></span></summary>
+      <div class="kp-settings-body">
+        <div class="kp-layout">
+          <h3>Keyboard layout</h3>
+          <div class="mode-switch" role="radiogroup" aria-label="Keyboard layout">
+            <button role="radio" id="layoutLetters" aria-checked="true">Letters</button>
+            <button role="radio" id="layoutSpeed" aria-checked="false">Speed (two hands)</button>
+          </div>
+        </div>
+        <p class="kp-note" id="kpNoteLetters">Press the letter of a face to turn it, and hold <kbd>Shift</kbd> to turn it the other way.</p>
+        <p class="kp-note" id="kpNoteSpeed" hidden>Rest both hands on the home row like typing (index fingers on <kbd>F</kbd> and <kbd>J</kbd>). Every key is one turn, no Shift needed. <kbd>H</kbd> is a turn here, so use the Hint button for hints.</p>
+        <div class="kb-map" id="kbMap" hidden aria-label="Speed layout keyboard map"></div>
+        <div class="kp-layout">
+          <h3><label for="turnSpeed">Turn speed</label></h3>
+          <div class="speed-row">
+            <span class="speed-end">Slow</span>
+            <input type="range" id="turnSpeed" min="0" max="10" step="1" value="3" aria-describedby="turnSpeedVal">
+            <span class="speed-end">Instant</span>
+          </div>
+          <span class="kp-note" id="turnSpeedVal"></span>
+        </div>
       </div>
+    </details>
+    <p class="kp-hint"><b>U</b> is always the top of your screen · orange = the layer that turns · <kbd>⇧</kbd> = Shift</p>
+    <div class="kp-table" role="group" aria-label="Turns">
+      <div class="kp-cols" aria-hidden="true"><span></span><span>Move</span><span>Clockwise</span><span>Other way</span></div>
+      <div id="kpFaces" class="kp-rows" aria-label="Faces"></div>
+      <div id="kpSlices" class="kp-rows" aria-label="Middle layers"></div>
+      <div id="kpWhole" class="kp-rows" aria-label="Whole cube"></div>
     </div>
-    <div class="kp-layout">
-      <h3><label for="turnSpeed">Turn speed</label></h3>
-      <div class="speed-row">
-        <span class="speed-end">Slow</span>
-        <input type="range" id="turnSpeed" min="0" max="10" step="1" value="3" aria-describedby="turnSpeedVal">
-        <span class="speed-end">Instant</span>
-      </div>
-      <span class="kp-note" id="turnSpeedVal"></span>
-    </div>
-    <p class="kp-note" id="kpNoteLetters">Press the letter of a face to turn it, and hold <kbd>Shift</kbd> to turn it the other way. Each picture shows the layer that moves (orange) and which way it goes. Letters follow your screen: <kbd>U</kbd> is always the face on top. Tap a picture to make that turn.</p>
-    <p class="kp-note" id="kpNoteSpeed" hidden>Rest both hands on the home row like typing (index fingers on <kbd>F</kbd> and <kbd>J</kbd>). Every key is one turn, no Shift needed. <kbd>H</kbd> is a turn in this layout, so use the Hint button for hints.</p>
-    <div class="kb-map" id="kbMap" hidden aria-label="Speed layout keyboard map"></div>
-    <div class="kp-group"><h3>Faces</h3><div id="kpFaces" class="kp-group"></div></div>
-    <div class="kp-group"><h3>Middle slices</h3><div id="kpSlices" class="kp-group"></div></div>
-    <div class="kp-group"><h3>Whole cube</h3><div id="kpWhole" class="kp-group"></div></div>
     <div class="kp-group">
       <h3>Other keys</h3>
       <ul class="kp-other">
-        <li><span>Undo last turn</span><span class="kp-keys"><kbd>Backspace</kbd></span></li>
-        <li><span>Undo (also)</span><span class="kp-keys"><kbd>Ctrl</kbd>+<kbd>Z</kbd></span></li>
-        <li><span>Show or hide this panel</span><span class="kp-keys"><kbd>?</kbd></span></li>
-        <li class="learn-only"><span>Get a hint for the next step</span><span class="kp-keys"><kbd>H</kbd></span></li>
-        <li><span>Flip the cube upside down (x2)</span><span class="kp-keys"><kbd>V</kbd></span></li>
-        <li><span>Turn the whole cube left / right (y, y′)</span><span class="kp-keys"><kbd>←</kbd><kbd>→</kbd></span></li>
-        <li><span>Tip the whole cube up / down (x, x′)</span><span class="kp-keys"><kbd>↑</kbd><kbd>↓</kbd></span></li>
-        <li><span>Zoom in / out (or scroll)</span><span class="kp-keys"><kbd>+</kbd><kbd>−</kbd></span></li>
-        <li><span>Reset zoom</span><span class="kp-keys"><kbd>0</kbd></span></li>
-        <li><span>Turn a layer</span><span>Drag a sticker</span></li>
-        <li><span>Spin the view</span><span>Drag the background</span></li>
-      </ul>
+        <li title="Undo the last turn (also Ctrl+Z)"><span class="kp-keys"><kbd>⌫</kbd></span><span>Undo</span></li>
+        <li title="Flip the cube upside down (x2)"><span class="kp-keys"><kbd>V</kbd></span><span>Flip</span></li>
+        <li title="Show or hide this panel"><span class="kp-keys"><kbd>?</kbd></span><span>Panel</span></li>
+        <li title="Turn the whole cube left / right (y, y′)"><span class="kp-keys"><kbd>←</kbd><kbd>→</kbd></span><span>Turn</span></li>
+        <li title="Tip the whole cube up / down (x, x′)"><span class="kp-keys"><kbd>↑</kbd><kbd>↓</kbd></span><span>Tip</span></li>
+        <li title="Zoom in / out (or scroll); 0 resets"><span class="kp-keys"><kbd>+</kbd><kbd>−</kbd></span><span>Zoom</span></li>
+        <li class="learn-only" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
     </div>
   </nav>
   <dialog class="confirm" id="resetDialog" aria-labelledby="resetTitle">
@@ -1783,18 +1816,22 @@ img { max-width: 100%; }
   ];
   // Letters layout: each turn's key is its letter, except the wide front turn f, which is on W.
   const letterKey = m => m[0] === 'f' ? 'W' : m[0].toUpperCase();
+  // Short names for the compact rows; the full name is the row's tooltip.
+  const SHORT_NAME = {
+    U: 'Top', D: 'Bottom', L: 'Left', R: 'Right', F: 'Front', B: 'Back',
+    M: 'Middle (like L)', E: 'Equator (like D)', S: 'Standing (like F)', f: 'Front 2 layers',
+    x: 'Tip, like R', y: 'Spin, like U', z: 'Roll, like F',
+  };
   for (const [group, k, name] of KEY_INFO) {
-    const key = letterKey(k);
-    const card = document.createElement('div');
-    card.className = 'kp-card';
-    card.innerHTML = `<div class="kp-name"><b>${k}</b><span>${name}</span></div>
-      <div class="kp-pair">
-        <button class="kp-move" id="kp-${k}" aria-label="${k}, clockwise">${moveIcon(k)}<span class="kp-keys" data-move="${k}"><kbd>${key}</kbd></span><span class="kp-cap">clockwise</span></button>
-        <button class="kp-move" id="kp-${k}p" aria-label="${k}', counter-clockwise">${moveIcon(k + "'")}<span class="kp-keys" data-move="${k}'"><kbd>Shift</kbd>+<kbd>${key}</kbd></span><span class="kp-cap">counter-clockwise</span></button>
-      </div>`;
-    card.querySelector(`#kp-${k}`).addEventListener('click', () => userMove(k));
-    card.querySelector(`#kp-${k}p`).addEventListener('click', () => userMove(k + "'"));
-    $(group).appendChild(card);
+    const row = document.createElement('div');
+    row.className = 'kp-row';
+    row.title = name;
+    row.innerHTML = `${moveIcon(k)}<div class="kp-name"><b>${k}</b><span>${SHORT_NAME[k]}</span></div>
+      <button class="kp-move" id="kp-${k}" aria-label="${k}, clockwise" title="${k}: ${name}, clockwise"><span class="kp-keys" data-move="${k}"></span></button>
+      <button class="kp-move" id="kp-${k}p" aria-label="${k}', counter-clockwise" title="${k}': the other way"><span class="kp-keys" data-move="${k}'"></span></button>`;
+    row.querySelector(`#kp-${k}`).addEventListener('click', () => userMove(k));
+    row.querySelector(`#kp-${k}p`).addEventListener('click', () => userMove(k + "'"));
+    $(group).appendChild(row);
   }
 
   // Two-handed speed layout: the common cube-timer arrangement, one key per turn, no Shift.
@@ -1810,12 +1847,13 @@ img { max-width: 100%; }
       const m = el.dataset.move;
       if (keyLayout === 'letters') {
         const key = letterKey(m);
-        el.innerHTML = m.length > 1 ? `<kbd>Shift</kbd>+<kbd>${key}</kbd>` : `<kbd>${key}</kbd>`;
+        el.innerHTML = m.length > 1 ? `<kbd title="Shift">⇧</kbd><kbd>${key}</kbd>` : `<kbd>${key}</kbd>`;
       } else {
         const keys = Object.keys(SPEED_KEYS).filter(k => SPEED_KEYS[k] === m);
-        el.innerHTML = keys.length ? keys.map(kcap).join(' or ') : '<span class="kp-cap">buttons only</span>';
+        el.innerHTML = keys.length ? keys.map(kcap).join('') : '<span class="kp-cap">click</span>';
       }
     }
+    renderSettingsSum();
     $('kbMap').hidden = keyLayout !== 'speed';
     $('layoutLetters').setAttribute('aria-checked', keyLayout === 'letters');
     $('layoutSpeed').setAttribute('aria-checked', keyLayout === 'speed');
@@ -1851,8 +1889,18 @@ img { max-width: 100%; }
     $('turnSpeed').value = turnSpeed;
     $('turnSpeedVal').textContent = `${SPEED_NAMES[turnSpeed]}: ${turnMs ? turnMs + ' ms per turn' : 'no animation'}. Turns also speed up by themselves when you type faster than this.`;
     try { localStorage.setItem('deskcube-turnspeed', turnSpeed); } catch (e) {}
+    renderSettingsSum();
     if (!quiet) accountSettingsChanged();
   }
+  // The folded Settings line says what is chosen, so it rarely needs opening.
+  function renderSettingsSum() {
+    const el = $('kpSettingsSum');
+    if (el) el.textContent = `${keyLayout === 'speed' ? 'Speed keys' : 'Letter keys'} · ${SPEED_NAMES[turnSpeed].toLowerCase()} turns`;
+  }
+  try { $('kpSettings').open = localStorage.getItem('deskcube-kpsettings') === '1'; } catch (e) {}
+  $('kpSettings').addEventListener('toggle', () => {
+    try { localStorage.setItem('deskcube-kpsettings', $('kpSettings').open ? '1' : '0'); } catch (e) {}
+  });
   $('turnSpeed').addEventListener('input', e => setTurnSpeed(+e.target.value));
   setTurnSpeed(turnSpeed, true);
   $('layoutLetters').addEventListener('click', () => setLayout('letters'));
