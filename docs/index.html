@@ -226,6 +226,26 @@ img { max-width: 100%; }
   dialog.acct .acct-msg:empty { display: none; }
   dialog.acct .acct-msg.bad { color: var(--danger); }
   dialog.acct .acct-msg.good { color: var(--good); }
+  dialog.acct.wide { width: min(600px, calc(100vw - 32px)); }
+  .acct-solves { display: flex; flex-direction: column; gap: 10px; }
+  .acct-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .acct-list-wrap { max-height: 280px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+  .acct-list { width: 100%; border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+  .acct-list th {
+    position: sticky; top: 0; background: var(--surface); text-align: left; font-weight: 600;
+    font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted);
+    padding: 8px 10px; border-bottom: 1px solid var(--line);
+  }
+  .acct-list td { padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .acct-list tr:last-child td { border-bottom: 0; }
+  .acct-list td:nth-child(2) { font-family: var(--font-mono); font-weight: 500; }
+  .acct-list td:first-child, .acct-list td:nth-child(4) { color: var(--muted); }
+  .acct-list tr.best td:nth-child(2) { color: var(--good); }
+  .acct-list td:last-child { text-align: right; width: 1%; }
+  .solve-del { border: 0; background: transparent; color: var(--muted); padding: 2px 8px; font-size: 1rem; cursor: pointer; border-radius: 6px; }
+  .solve-del:hover { color: var(--danger); }
+  .solve-del.armed { color: var(--danger); font-size: 0.8rem; font-weight: 600; border: 1px solid var(--danger); }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
   /* First visit: the sign-in dialog becomes a full welcome page over a plain cubing-mat background. */
   .welcome-cover {
@@ -558,6 +578,16 @@ img { max-width: 100%; }
       <h3>Your account</h3>
       <p class="acct-email" id="acctEmail"></p>
       <p class="acct-stats" id="acctStats"></p>
+      <div class="acct-solves" id="acctSolves" hidden>
+        <div class="stats acct-tiles" id="acctTiles"></div>
+        <p class="acct-note">Ao5 and Ao12 are your current averages of the last 5 and 12 solves, leaving out the fastest and slowest of each set.</p>
+        <div class="acct-list-wrap" id="acctListWrap">
+          <table class="acct-list">
+            <thead><tr><th>#</th><th>Time</th><th>Moves</th><th>When</th><th><span class="sr-only">Delete</span></th></tr></thead>
+            <tbody id="acctList"></tbody>
+          </table>
+        </div>
+      </div>
       <div class="acct-import" id="acctImport" hidden>
         <p id="acctImportText"></p>
         <div class="confirm-actions">
@@ -2381,6 +2411,7 @@ img { max-width: 100%; }
   }
   function showAcctView(name) {
     for (const v of acctDialog.querySelectorAll('[data-view]')) v.hidden = v.dataset.view !== name;
+    acctDialog.classList.toggle('wide', name === 'account');
     acctMsg('');
     if (name === 'account') renderAccount();
     const first = acctDialog.querySelector(`[data-view="${name}"] input`);
@@ -2407,6 +2438,83 @@ img { max-width: 100%; }
     } catch (e) { return { best: null, solves: 0 }; }
   }
   const remoteBest = () => acct.remote.length ? Math.min(...acct.remote.map(s => s.time_ms)) : null;
+  const SOLVE_COLS = 'id, time_ms, moves, scramble, solved_at';
+
+  // Speedcubing averages: "average of n" drops the fastest and slowest of n solves in a row
+  // and takes the mean of the rest. Solves are newest first.
+  function aoN(times, n) {
+    if (times.length < n) return null;
+    const s = times.slice(0, n).sort((a, b) => a - b).slice(1, -1);
+    return s.reduce((a, b) => a + b, 0) / s.length;
+  }
+  function bestAoN(times, n) {
+    let best = null;
+    for (let i = 0; i + n <= times.length; i++) {
+      const a = aoN(times.slice(i), n);
+      if (best === null || a < best) best = a;
+    }
+    return best;
+  }
+  function renderSolves() {
+    const list = acct.remote, times = list.map(s => s.time_ms), n = list.length;
+    const best = remoteBest(), f = v => v === null ? '–' : fmt(v);
+    const mean = n ? times.reduce((a, b) => a + b, 0) / n : null;
+    const tiles = [
+      ['Solves', String(n)], ['Best', f(best)], ['Average', f(mean)],
+      ['Ao5', f(aoN(times, 5))], ['Ao12', f(aoN(times, 12))], ['Best Ao5', f(bestAoN(times, 5))],
+    ];
+    const box = $('acctTiles');
+    box.innerHTML = '';
+    for (const [label, value] of tiles) {
+      const tile = document.createElement('div');
+      tile.className = 'stat';
+      tile.innerHTML = '<span class="label"></span><span class="value"></span>';
+      tile.firstChild.textContent = label;
+      tile.lastChild.textContent = value;
+      box.appendChild(tile);
+    }
+    const body = $('acctList');
+    body.innerHTML = '';
+    list.forEach((s, i) => {
+      const tr = document.createElement('tr');
+      if (s.time_ms === best) tr.className = 'best';
+      if (s.scramble) tr.title = 'Scramble: ' + s.scramble;
+      const when = new Date(s.solved_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      for (const text of [String(n - i), fmt(s.time_ms), s.moves === null || s.moves === undefined ? '–' : String(s.moves), when]) {
+        const td = document.createElement('td');
+        td.textContent = text;
+        tr.appendChild(td);
+      }
+      const td = document.createElement('td');
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'solve-del';
+      del.textContent = '×';
+      del.title = 'Delete this solve';
+      del.setAttribute('aria-label', `Delete solve ${n - i}`);
+      del.addEventListener('click', () => deleteSolve(s, del));
+      td.appendChild(del);
+      tr.appendChild(td);
+      body.appendChild(tr);
+    });
+    $('acctListWrap').hidden = !n;
+  }
+  // First click arms the button ("Delete?"), a second click within a few seconds deletes.
+  async function deleteSolve(s, btn) {
+    if (!btn.classList.contains('armed')) {
+      btn.classList.add('armed');
+      btn.textContent = 'Delete?';
+      setTimeout(() => { if (btn.isConnected) { btn.classList.remove('armed'); btn.textContent = '×'; } }, 3000);
+      return;
+    }
+    btn.disabled = true;
+    const { error } = await acct.sb.from('solves').delete().eq('id', s.id);
+    if (error) { btn.disabled = false; acctMsg(friendly(error), 'bad'); return; }
+    acct.remote = acct.remote.filter(r => r.id !== s.id);
+    useAccountStats();
+    renderAccount();
+    acctMsg('Solve deleted.', 'good');
+  }
   function displayName() {
     const p = acct.profile, u = acct.user, meta = u.user_metadata || {};
     return (p && p.display_name) || meta.display_name || (u.email || '').split('@')[0] || 'Account';
@@ -2433,8 +2541,9 @@ img { max-width: 100%; }
     $('acctName').value = (acct.profile && acct.profile.display_name) || '';
     const n = acct.remote.length, best = remoteBest();
     $('acctStats').textContent = !acct.loaded ? 'Loading your saved solves…'
-      : n ? `${n} saved solve${n === 1 ? '' : 's'} · best ${fmt(best)}`
-      : 'No saved solves yet. Scramble and solve to save your first one.';
+      : n ? '' : 'No saved solves yet. Scramble and solve to save your first one.';
+    $('acctSolves').hidden = !acct.loaded;
+    if (acct.loaded) renderSolves();
     // Offer to bring over the best time this browser recorded before signing in.
     const local = localStats(), key = 'deskcube-imported-' + acct.user.id;
     let done = false;
@@ -2483,7 +2592,7 @@ img { max-width: 100%; }
     const sb = acct.sb, uid = acct.user.id;
     acct.loaded = false;
     const [solvesRes, profRes] = await Promise.all([
-      sb.from('solves').select('time_ms, solved_at').order('solved_at', { ascending: false }),
+      sb.from('solves').select(SOLVE_COLS).order('solved_at', { ascending: false }),
       sb.from('profiles').select('display_name, settings').eq('id', uid).maybeSingle(),
     ]);
     if (!acct.user || acct.user.id !== uid) return;
@@ -2540,10 +2649,11 @@ img { max-width: 100%; }
   function accountOnSolve(t) {
     if (!acct || !acct.user) return;
     const row = { time_ms: Math.max(1, Math.round(t)), moves: state.moves, scramble: state.scrambleText || null };
-    acct.sb.from('solves').insert(row).then(({ error }) => {
+    acct.sb.from('solves').insert(row).select(SOLVE_COLS).single().then(({ data, error }) => {
       if (error) { statusEl.textContent += ' It could not be saved to your account.'; return; }
-      acct.remote.unshift({ time_ms: row.time_ms, solved_at: new Date().toISOString() });
+      acct.remote.unshift(data);
       statusEl.textContent += ' Saved to your account.';
+      if (acctDialog.open) renderAccount();
     });
   }
 
@@ -2636,10 +2746,10 @@ img { max-width: 100%; }
       const local = localStats();
       if (!local.best) return;
       const row = { time_ms: Math.round(local.best) };
-      const { error } = await acct.sb.from('solves').insert(row);
+      const { data, error } = await acct.sb.from('solves').insert(row).select(SOLVE_COLS).single();
       if (error) { acctMsg(friendly(error), 'bad'); return; }
       try { localStorage.setItem('deskcube-imported-' + acct.user.id, '1'); } catch (e) {}
-      acct.remote.unshift({ ...row, solved_at: new Date().toISOString() });
+      acct.remote.unshift(data);
       useAccountStats();
       renderAccount();
       acctMsg('Added to your account.', 'good');
