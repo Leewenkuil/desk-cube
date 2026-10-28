@@ -156,6 +156,11 @@ img { max-width: 100%; }
   .comp-times li.dnf { color: var(--danger); }
   .comp-times li.dropped { opacity: 0.55; }
   .comp-result { margin: 0; font-weight: 600; }
+  .daily { display: flex; flex-direction: column; gap: 8px; }
+  .daily-num { color: var(--accent); margin-left: 4px; }
+  .daily-next { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+  .daily-result { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .daily-result.dnf { color: var(--danger); }
   /* Replay controls over the bottom of the cube. */
   .stage.replaying .hint { display: none; }
   .replay-bar {
@@ -281,7 +286,7 @@ img { max-width: 100%; }
   .solve-play:hover { background: var(--bg); }
   .acct-list td.dnf { color: var(--danger); }
   dialog.lb[open] { display: flex; flex-direction: column; gap: 12px; }
-  dialog.lb .mode-switch { display: grid; grid-template-columns: 1fr 1fr; }
+  dialog.lb .mode-switch { display: grid; grid-template-columns: repeat(3, 1fr); }
   dialog.lb .mode-switch button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
   .lb-wrap { max-height: 360px; }
   .lb-list td:nth-child(2) { color: var(--fg); font-family: var(--font-body); font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
@@ -635,10 +640,11 @@ img { max-width: 100%; }
   <dialog class="confirm acct wide lb" id="lbDialog" aria-labelledby="lbTitle">
     <button type="button" class="acct-close" id="lbClose" aria-label="Close">×</button>
     <h3 id="lbTitle">Leaderboard</h3>
-    <p class="acct-note">Only solves from Official competition mode count, so everyone had the same 15 seconds to look at the cube. Press ▶ to watch a solve.</p>
+    <p class="acct-note" id="lbNote">Only solves from Official competition mode count, so everyone had the same 15 seconds to look at the cube. Press ▶ to watch a solve.</p>
     <div class="mode-switch" role="radiogroup" aria-label="Leaderboard type">
       <button role="radio" id="lbSingle" aria-checked="true">Best single</button>
       <button role="radio" id="lbAvg" aria-checked="false">Best average of 5</button>
+      <button role="radio" id="lbDaily" aria-checked="false">Today's daily</button>
     </div>
     <div class="acct-list-wrap lb-wrap">
       <table class="acct-list lb-list">
@@ -850,6 +856,19 @@ img { max-width: 100%; }
       <button id="flipBtn" class="wide" title="Turn the whole cube upside down (x2), key V">Flip upside down <kbd>V</kbd></button>
       <button id="viewBtn" title="Return to the starting camera angle">Reset view</button>
     </div>
+
+    <section class="daily" id="dailyBox">
+      <div class="coach-head">
+        <h2>Daily challenge <span class="daily-num" id="dailyNum"></span></h2>
+        <span class="daily-next" id="dailyNext"></span>
+      </div>
+      <p class="comp-note" id="dailyNote">The same scramble for everyone today. One try: 15 seconds to look, then the timer starts. No undo, hints or pausing, and leaving the page counts as a DNF.</p>
+      <p class="daily-result" id="dailyResult" hidden></p>
+      <div class="actions two">
+        <button class="primary" id="dailyBtn">Play today's</button>
+        <button id="dailyBoardBtn" hidden>Today's results</button>
+      </div>
+    </section>
 
     <section class="comp solve-only" id="compBox">
       <button class="theme-switch comp-switch" id="compBtn" role="switch" aria-checked="false">
@@ -1219,7 +1238,7 @@ img { max-width: 100%; }
     renderSeq($('historySeq'), state.history.slice(-60).map(h => h.label), 'No moves yet');
     timeEl.classList.toggle('running', state.mode === 'running');
     timeEl.classList.toggle('done', state.mode === 'solved');
-    const compOn = compActive(), solving = state.mode === 'running' || state.mode === 'inspect';
+    const compOn = strictRules(), solving = state.mode === 'running' || state.mode === 'inspect';
     $('pauseBtn').hidden = compOn || state.mode !== 'running';
     $('replayLastBtn').hidden = !(state.mode === 'solved' && lastReplay && lastReplay.replay);
     $('undoBtn').hidden = $('resetBtn').hidden = compOn;
@@ -1227,10 +1246,11 @@ img { max-width: 100%; }
     $('giveUpCompBtn').disabled = !solving;
     $('undoBtn').disabled = !state.history.length || state.scrambling;
     $('scrambleBtn').disabled = state.scrambling || (compOn && solving);
-    $('scrambleBtn').textContent = !compOn ? 'Scramble'
+    $('scrambleBtn').textContent = dailyOn() || !compActive() ? 'Scramble'
       : !comp.results.length || comp.results.length >= 5 ? 'Start a round' : `Scramble solve ${comp.results.length + 1} of 5`;
     timeEl.classList.toggle('inspect', state.mode === 'inspect');
     renderComp();
+    renderDaily();
   }
 
   function isSolved() {
@@ -1256,7 +1276,7 @@ img { max-width: 100%; }
       if (!queue.some(q => q.scramble)) {
         state.scrambling = false;
         state.rec = [];
-        if (compActive() && comp.roundId) {
+        if (dailyOn() || (compActive() && comp.roundId)) {
           // Inspection: 15 seconds to look; the timer starts on the first turn or when time runs out.
           state.mode = 'inspect';
           state.inspectStart = performance.now();
@@ -1310,7 +1330,8 @@ img { max-width: 100%; }
       const replayText = (state.rec || []).join(' ');
       lastReplay = { scramble: state.scrambleText, replay: replayText, time: t };
       setStatus(`Solved in ${fmt(t)} with ${state.moves} moves.${pb ? ' New best!' : ''}`, true);
-      if (compActive() && comp.roundId) compSolveDone(t, false, replayText);
+      if (dailyOn()) dailySolveDone(t, false, replayText);
+      else if (compActive() && comp.roundId) compSolveDone(t, false, replayText);
       else accountOnSolve(t, { replay: replayText });
     }
     renderPanel();
@@ -1332,7 +1353,21 @@ img { max-width: 100%; }
     renderPanel();
   }
 
-  function scramble() {
+  // 22 face turns, never the same face twice in a row or three on one axis. `rand` can be seeded (daily challenge).
+  function scrambleSeq(rand = Math.random) {
+    const axisOf = { U: 'y', D: 'y', R: 'x', L: 'x', F: 'z', B: 'z' };
+    const faces = 'UDRLFB', seq = [];
+    let lastAxis = null, prevFace = null;
+    while (seq.length < 22) {
+      const f = faces[Math.floor(rand() * 6)];
+      if (f === prevFace) continue;
+      if (axisOf[f] === lastAxis && seq.length > 1 && axisOf[seq[seq.length - 2][0]] === lastAxis) continue;
+      const m = f + ['', "'", '2'][Math.floor(rand() * 3)];
+      seq.push(m); lastAxis = axisOf[f]; prevFace = f;
+    }
+    return seq;
+  }
+  function scramble(given) {
     if (state.scrambling) return;
     endReplay();
     if (anim) finishAnim();
@@ -1341,16 +1376,7 @@ img { max-width: 100%; }
     // Start every scramble from white on top, green in front, seen from the corner.
     buildCube();
     placeCamera();
-    const axisOf = { U: 'y', D: 'y', R: 'x', L: 'x', F: 'z', B: 'z' };
-    const faces = 'UDRLFB', seq = [];
-    let lastAxis = null, prevFace = null;
-    while (seq.length < 22) {
-      const f = faces[Math.floor(Math.random() * 6)];
-      if (f === prevFace) continue;
-      if (axisOf[f] === lastAxis && seq.length > 1 && axisOf[seq[seq.length - 2][0]] === lastAxis) continue;
-      const m = f + ['', "'", '2'][Math.floor(Math.random() * 3)];
-      seq.push(m); lastAxis = axisOf[f]; prevFace = f;
-    }
+    const seq = Array.isArray(given) ? given : scrambleSeq();
     state.scrambling = true;
     lesson.ready = false;
     state.moves = 0; state.history = []; state.mode = 'idle';
@@ -1382,7 +1408,7 @@ img { max-width: 100%; }
     if (state.scrambling || !state.history.length) return;
     // Only undo what has landed; ignore while turns are still queued.
     if (anim || queue.length) return;
-    if (compActive() || state.mode === 'replay') return;
+    if (strictRules() || state.mode === 'replay') return;
     const last = state.history[state.history.length - 1];
     enqueue({ ...last, angle: -last.angle, undo: true, user: false, at: performance.now() });
   }
@@ -2441,7 +2467,7 @@ img { max-width: 100%; }
   function setMode(mode) {
     const speed = mode === 'speed';
     // No switching to Learning (hints) in the middle of a competition solve.
-    if (!speed && compSolving()) return;
+    if (!speed && (strictSolving() || dailyOn())) return;
     if (speed) document.documentElement.dataset.mode = 'speed';
     else delete document.documentElement.dataset.mode;
     $('modeLearn').setAttribute('aria-checked', !speed);
@@ -2692,6 +2718,7 @@ img { max-width: 100%; }
   }, reset);
   $('resetBtn').addEventListener('click', askReset);
   $('scrambleBtn').addEventListener('click', () => {
+    if (dailyOn()) return;
     if (compActive()) { compScramble(); return; }
     if (state.mode === 'running') {
       askConfirm({
@@ -2860,7 +2887,7 @@ img { max-width: 100%; }
   const fmtResult = v => v === Infinity ? 'DNF' : v === null ? '–' : fmt(v);
   function renderComp() {
     $('compBtn').setAttribute('aria-checked', comp.on);
-    $('compBtn').disabled = compSolving();
+    $('compBtn').disabled = compSolving() || dailyOn();
     const on = compActive(), res = comp.results;
     $('compTimes').hidden = !on;
     $('compResult').hidden = !on || res.length < 5;
@@ -2927,19 +2954,134 @@ img { max-width: 100%; }
     renderPanel();
   }
   $('giveUpCompBtn').addEventListener('click', () => {
-    if (!compSolving()) return;
+    if (!strictSolving()) return;
     askConfirm({
       title: 'Give up this solve?', ok: 'Give up',
-      text: 'It counts as DNF (did not finish) in this round. One DNF is dropped as your slowest solve; two make the round average DNF.',
+      text: dailyOn()
+        ? 'It counts as DNF (did not finish) for today\'s challenge, and there\'s only one try a day.'
+        : 'It counts as DNF (did not finish) in this round. One DNF is dropped as your slowest solve; two make the round average DNF.',
     }, () => {
-      if (!compSolving()) return;
+      if (!strictSolving()) return;
       const t = state.mode === 'running' ? performance.now() - state.start : 0;
       state.mode = 'solved';
       renderTime(t);
       lastReplay = null;
-      compSolveDone(Math.max(1, t), true, (state.rec || []).join(' '));
+      if (dailyOn()) dailySolveDone(Math.max(1, t), true, (state.rec || []).join(' '));
+      else compSolveDone(Math.max(1, t), true, (state.rec || []).join(' '));
     });
   });
+
+  // ---------- Daily challenge ----------
+  // Everyone gets the same scramble on the same (UTC) day, from a generator seeded with the date.
+  // One try a day under competition rules; giving up or leaving the page mid-try is a DNF.
+  // This browser keeps the try (deskcube-daily); signed in, it's saved with its day and the
+  // database allows one per person per day.
+  const DAILY_KEY = 'deskcube-daily', DAILY_START = Date.UTC(2026, 9, 28);
+  var daily = { active: false, prevMode: null, local: null };   // local: { day, started, uid, result, synced }
+  const todayUTC = () => new Date().toISOString().slice(0, 10);
+  const dailyNumber = day => Math.floor((Date.parse(day) - DAILY_START) / 864e5) + 1;
+  function dailyOn() { return !!daily && daily.active; }
+  // Competition rules (inspection, no undo, pause or hints) apply in a competition round and the daily try.
+  function strictRules() { return dailyOn() || compActive(); }
+  function strictSolving() { return strictRules() && (state.mode === 'running' || state.mode === 'inspect'); }
+  function seededRandom(text) {
+    let h = 1779033703 ^ text.length;
+    for (let i = 0; i < text.length; i++) { h = Math.imul(h ^ text.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; }
+    let a = h >>> 0;
+    return () => {
+      a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  const dailySeq = day => scrambleSeq(seededRandom('desk-cube daily ' + day));
+  function storeDaily() { try { localStorage.setItem(DAILY_KEY, JSON.stringify(daily.local)); } catch (e) {} }
+  try { daily.local = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null'); } catch (e) {}
+  // A try that started but never finished (the page was closed or reloaded) counts as a DNF.
+  if (daily.local && daily.local.started && !daily.local.result) {
+    daily.local.result = { time: 1, dnf: true, moves: 0 };
+    daily.local.synced = false;
+    storeDaily();
+  }
+  // Today's result from this browser, or from the account (a try made on another computer).
+  function dailyToday() {
+    const day = todayUTC();
+    if (daily.local && daily.local.day === day && daily.local.result) return daily.local.result;
+    const row = acct && acct.remote.find(s => s.daily === day);
+    return row ? { time: row.time_ms, dnf: row.dnf, moves: row.moves } : null;
+  }
+
+  function startDaily() {
+    const day = todayUTC();
+    if (dailyToday() || daily.active || state.scrambling) return;
+    if (compActive() && comp.roundId && comp.results.length < 5) {
+      setStatus('Finish or exit your competition round before the daily challenge.');
+      return;
+    }
+    const mid = state.mode === 'running' || state.mode === 'inspect';
+    askConfirm({
+      title: `Start daily challenge #${dailyNumber(day)}?`, ok: 'Start',
+      text: (mid ? 'Your current solve ends and isn\'t recorded. ' : '')
+        + 'You get one try today. The scramble appears straight away, then 15 seconds to look before the timer starts.',
+    }, () => {
+      if (dailyToday() || daily.active || state.scrambling) return;
+      clearPaused();
+      daily.prevMode = isSpeed() ? null : 'learn';
+      if (!isSpeed()) setMode('speed');
+      daily.active = true;
+      daily.local = { day, started: true, uid: acct && acct.user ? acct.user.id : null };
+      storeDaily();
+      scramble(dailySeq(day));
+      setStatus(`Daily challenge #${dailyNumber(day)}: scrambling…`);
+    });
+  }
+  function dailySolveDone(t, dnf, replayText) {
+    const day = (daily.local && daily.local.day) || todayUTC();
+    daily.active = false;
+    daily.local = { ...daily.local, day, result: { time: Math.round(t), dnf, moves: state.moves }, synced: false };
+    storeDaily();
+    setStatus(`Daily challenge #${dailyNumber(day)}: ` + (dnf ? 'DNF. A new scramble comes tomorrow.' : `${fmt(t)} with ${state.moves} moves.`), !dnf);
+    accountOnSolve(t, { replay: replayText, dnf, daily: day }, () => { daily.local.synced = true; storeDaily(); });
+    if (daily.prevMode === 'learn') setMode('learn');
+    daily.prevMode = null;
+    renderPanel();
+  }
+  // A try saved only in this browser (the page closed mid-try, or saving failed) goes to the
+  // account it was started with, once that account has loaded.
+  function dailySync() {
+    const l = daily.local;
+    if (!l || !l.result || l.synced || !acct || !acct.user || acct.noDaily || acct.oldSchema || l.uid !== acct.user.id) return;
+    if (acct.remote.some(s => s.daily === l.day)) { l.synced = true; storeDaily(); return; }
+    const row = { time_ms: Math.max(1, l.result.time), moves: l.result.moves, scramble: dailySeq(l.day).join(' '), dnf: l.result.dnf, daily: l.day };
+    acct.sb.from('solves').insert(row).select(solveCols()).single().then(({ data, error }) => {
+      if (error) return;
+      l.synced = true;
+      storeDaily();
+      acct.remote.unshift(data);
+      renderPanel();
+    });
+  }
+  function renderDaily() {
+    if (!daily) return;
+    const day = todayUTC(), res = dailyToday();
+    $('dailyNum').textContent = `#${dailyNumber(day)}`;
+    $('dailyBtn').hidden = !!res;
+    $('dailyBtn').disabled = daily.active || state.scrambling;
+    $('dailyBtn').textContent = daily.active ? 'Your try is on' : 'Play today\'s';
+    $('dailyNote').hidden = !!res;
+    $('dailyResult').hidden = !res;
+    if (res) {
+      $('dailyResult').textContent = 'Your result today: ' + (res.dnf ? 'DNF' : fmt(res.time) + (res.moves ? ` · ${res.moves} moves` : ''));
+      $('dailyResult').classList.toggle('dnf', !!res.dnf);
+    }
+    // The results button appears with the leaderboard (when accounts are on).
+    $('dailyBoardBtn').hidden = $('lbBtn').hidden;
+    const left = Date.parse(day) + 864e5 - Date.now(), h = Math.floor(left / 36e5), m = Math.floor(left / 6e4) % 60;
+    $('dailyNext').textContent = res ? `Next one in ${h} h ${m} min` : '';
+  }
+  $('dailyBtn').addEventListener('click', startDaily);
+  setInterval(renderDaily, 30000);
 
   // ---------- Pause ----------
   // Pausing freezes the timer and covers the whole page, so the cube and the move list can't be studied
@@ -2987,7 +3129,7 @@ img { max-width: 100%; }
     $('resumeBtn').focus();
   }
   function pauseSolve() {
-    if (paused || compActive()) return;
+    if (paused || strictRules()) return;
     const p = takeSnapshot();
     if (!p) return;
     paused = p;
@@ -3124,9 +3266,10 @@ img { max-width: 100%; }
   const remoteBest = () => finished().length ? Math.min(...finished().map(s => s.time_ms)) : null;
   // The replay, competition and DNF columns come from supabase-setup.sql; until it has been run again,
   // the page falls back to the original columns (acct.oldSchema) and those features stay off.
-  const SOLVE_COLS = 'id, time_ms, moves, scramble, solved_at, dnf, competition';
+  const SOLVE_COLS = 'id, time_ms, moves, scramble, solved_at, dnf, competition, daily';
+  const NO_DAILY_COLS = 'id, time_ms, moves, scramble, solved_at, dnf, competition';
   const OLD_SOLVE_COLS = 'id, time_ms, moves, scramble, solved_at';
-  const solveCols = () => acct.oldSchema ? OLD_SOLVE_COLS : SOLVE_COLS;
+  const solveCols = () => acct.oldSchema ? OLD_SOLVE_COLS : acct.noDaily ? NO_DAILY_COLS : SOLVE_COLS;
   const missingColumn = err => !!err && (err.code === '42703' || err.code === 'PGRST204' || /column .* does not exist|Could not find the .* column/i.test(err.message || ''));
 
   // Speedcubing averages: "average of n" drops the fastest and slowest of n solves in a row
@@ -3168,9 +3311,9 @@ img { max-width: 100%; }
     list.forEach((s, i) => {
       const tr = document.createElement('tr');
       if (!s.dnf && s.time_ms === best) tr.className = 'best';
-      if (s.scramble) tr.title = (s.competition ? 'Competition solve. ' : '') + 'Scramble: ' + s.scramble;
+      if (s.scramble) tr.title = (s.competition ? 'Competition solve. ' : s.daily ? `Daily challenge #${dailyNumber(s.daily)}. ` : '') + 'Scramble: ' + s.scramble;
       const when = new Date(s.solved_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-      const timeText = (s.dnf ? 'DNF' : fmt(s.time_ms)) + (s.competition ? ' · comp' : '');
+      const timeText = (s.dnf ? 'DNF' : fmt(s.time_ms)) + (s.competition ? ' · comp' : s.daily ? ' · daily' : '');
       for (const text of [String(n - i), timeText, s.moves === null || s.moves === undefined ? '–' : String(s.moves), when]) {
         const td = document.createElement('td');
         td.textContent = text;
@@ -3195,7 +3338,8 @@ img { max-width: 100%; }
       del.title = 'Delete this solve';
       del.setAttribute('aria-label', `Delete solve ${n - i}`);
       del.addEventListener('click', () => deleteSolve(s, del));
-      td.appendChild(del);
+      // The database keeps daily tries for two days, so a bad one can't be deleted and retried.
+      if (!(s.daily && Date.parse(s.daily) >= Date.parse(todayUTC()) - 864e5)) td.appendChild(del);
       tr.appendChild(td);
       body.appendChild(tr);
     });
@@ -3313,6 +3457,7 @@ img { max-width: 100%; }
       loadSolves(),
       sb.from('profiles').select('*').eq('id', uid).maybeSingle(),
     ]);
+    if (missingColumn(solvesRes.error)) { acct.noDaily = true; solvesRes = await loadSolves(); }
     if (missingColumn(solvesRes.error)) { acct.oldSchema = true; solvesRes = await loadSolves(); }
     if (!acct.user || acct.user.id !== uid) return;
     if (solvesRes.error || profRes.error) {
@@ -3331,6 +3476,7 @@ img { max-width: 100%; }
     }
     acct.loaded = true;
     useAccountStats();
+    dailySync();
     renderAccountBtn();
     if (acctDialog.open) renderAccount();
   }
@@ -3365,15 +3511,21 @@ img { max-width: 100%; }
     if (user) { acct.loaded = false; if (acctDialog.open) renderAccount(); await loadAccount(); } else signedOut();
   }
 
-  // extra: { replay, competition, round_id, dnf } (left out until the database has those columns).
-  function accountOnSolve(t, extra = {}) {
+  // extra: { replay, competition, round_id, dnf, daily } (left out until the database has those columns).
+  function accountOnSolve(t, extra = {}, onSaved) {
     if (!acct || !acct.user) return;
     const row = { time_ms: Math.max(1, Math.round(t)), moves: state.moves, scramble: state.scrambleText || null };
     if (!acct.oldSchema) Object.assign(row, { replay: extra.replay || null, competition: !!extra.competition, round_id: extra.round_id || null, dnf: !!extra.dnf });
+    if (!acct.oldSchema && !acct.noDaily && extra.daily) row.daily = extra.daily;
     acct.sb.from('solves').insert(row).select(solveCols()).single().then(({ data, error }) => {
-      if (error) { statusEl.textContent += ' It could not be saved to your account.'; return; }
+      if (error) {
+        statusEl.textContent += error.code === '23505' ? ' You\'d already done today\'s challenge on another computer, so this one isn\'t saved.'
+          : ' It could not be saved to your account.';
+        return;
+      }
       acct.remote.unshift(data);
       statusEl.textContent += ' Saved to your account.';
+      if (onSaved) onSaved(data);
       if (acctDialog.open) renderAccount();
     });
   }
@@ -3474,30 +3626,37 @@ img { max-width: 100%; }
     // Leaderboard: public, read through two database functions that return only names and results.
     const lb = { kind: 'single' };
     async function loadLeaderboard() {
-      const single = lb.kind === 'single';
-      $('lbSingle').setAttribute('aria-checked', single);
-      $('lbAvg').setAttribute('aria-checked', !single);
+      const kind = lb.kind, isDaily = kind === 'daily', single = kind === 'single' || isDaily, day = todayUTC();
+      $('lbSingle').setAttribute('aria-checked', kind === 'single');
+      $('lbAvg').setAttribute('aria-checked', kind === 'avg');
+      $('lbDaily').setAttribute('aria-checked', isDaily);
+      $('lbNote').textContent = isDaily
+        ? `Daily challenge #${dailyNumber(day)}: everyone's one try at today's scramble. Press ▶ to watch a solve.`
+        : 'Only solves from Official competition mode count, so everyone had the same 15 seconds to look at the cube. Press ▶ to watch a solve.';
       $('lbHead').innerHTML = single
-        ? '<tr><th>#</th><th>Name</th><th>Time</th><th>Moves</th><th>When</th><th><span class="sr-only">Replay</span></th></tr>'
+        ? `<tr><th>#</th><th>Name</th><th>Time</th><th>Moves</th><th>${isDaily ? 'Time of day' : 'When'}</th><th><span class="sr-only">Replay</span></th></tr>`
         : '<tr><th>#</th><th>Name</th><th>Average</th><th>Times</th><th>When</th></tr>';
       const body = $('lbBody');
       body.innerHTML = '';
       $('lbMsg').className = 'acct-msg';
       $('lbMsg').textContent = 'Loading…';
-      const { data, error } = await acct.sb.rpc(single ? 'leaderboard_singles' : 'leaderboard_averages', { lim: 50 });
-      if (lb.kind !== (single ? 'single' : 'avg')) return;
+      const { data, error } = isDaily ? await acct.sb.rpc('leaderboard_daily', { day, lim: 100 })
+        : await acct.sb.rpc(single ? 'leaderboard_singles' : 'leaderboard_averages', { lim: 50 });
+      if (lb.kind !== kind) return;
       if (error) {
         $('lbMsg').textContent = /function .* does not exist|Could not find the function/i.test(error.message || '')
           ? 'The leaderboard needs the database update first (supabase-setup.sql).' : friendly(error);
         $('lbMsg').className = 'acct-msg bad';
         return;
       }
-      $('lbMsg').textContent = data.length ? '' : 'No results yet. Finish a round in Official competition mode to be the first.';
+      $('lbMsg').textContent = data.length ? ''
+        : isDaily ? 'Nobody has done today\'s challenge yet. Be the first!' : 'No results yet. Finish a round in Official competition mode to be the first.';
       data.forEach((r, i) => {
         const tr = document.createElement('tr');
-        const when = new Date(single ? r.solved_at : r.finished_at).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+        const when = isDaily ? new Date(r.solved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : new Date(single ? r.solved_at : r.finished_at).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
         const cells = single
-          ? [String(i + 1), r.name, fmt(r.time_ms), r.moves === null ? '–' : String(r.moves), when]
+          ? [r.dnf ? '–' : String(i + 1), r.name, r.dnf ? 'DNF' : fmt(r.time_ms), r.moves === null ? '–' : String(r.moves), when]
           : [String(i + 1), r.name, fmt(r.average_ms), (r.times || []).map((t, k) => r.dnfs && r.dnfs[k] ? 'DNF' : fmt(t)).join('  '), when];
         cells.forEach((text, k) => {
           const td = document.createElement('td');
@@ -3507,6 +3666,8 @@ img { max-width: 100%; }
         });
         if (single) {
           const td = document.createElement('td');
+          tr.appendChild(td);
+          if (!r.replay) { body.appendChild(tr); return; }
           const play = document.createElement('button');
           play.type = 'button';
           play.className = 'solve-play';
@@ -3516,10 +3677,9 @@ img { max-width: 100%; }
           play.addEventListener('click', () => {
             if (state.mode === 'running' || state.mode === 'inspect') { $('lbMsg').textContent = 'Finish or reset your current solve first.'; return; }
             $('lbDialog').close();
-            startReplay({ scramble: r.scramble, replay: r.replay, time: r.time_ms, title: `${r.name}: ${fmt(r.time_ms)}` });
+            startReplay({ scramble: r.scramble, replay: r.replay, time: r.time_ms, title: `${r.name}: ${r.dnf ? 'DNF' : fmt(r.time_ms)}` });
           });
           td.appendChild(play);
-          tr.appendChild(td);
         }
         body.appendChild(tr);
       });
@@ -3532,6 +3692,13 @@ img { max-width: 100%; }
     $('lbClose').addEventListener('click', () => $('lbDialog').close());
     $('lbSingle').addEventListener('click', () => { lb.kind = 'single'; loadLeaderboard(); });
     $('lbAvg').addEventListener('click', () => { lb.kind = 'avg'; loadLeaderboard(); });
+    $('lbDaily').addEventListener('click', () => { lb.kind = 'daily'; loadLeaderboard(); });
+    $('dailyBoardBtn').addEventListener('click', () => {
+      lb.kind = 'daily';
+      if (!$('lbDialog').open) $('lbDialog').showModal();
+      loadLeaderboard();
+    });
+    renderDaily();
 
     $('acctImportBtn').addEventListener('click', async () => {
       const local = localStats();

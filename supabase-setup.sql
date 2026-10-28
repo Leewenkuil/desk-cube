@@ -110,6 +110,38 @@ revoke all on function public.leaderboard_averages(int) from public;
 grant execute on function public.leaderboard_singles(int) to anon, authenticated;
 grant execute on function public.leaderboard_averages(int) to anon, authenticated;
 
+-- ===== Update 3: the daily challenge =====
+-- Everyone gets the same scramble each day (UTC). A daily solve stores that day; one try per person per day.
+alter table public.solves add column if not exists daily date;
+create unique index if not exists solves_one_daily on public.solves (user_id, daily) where daily is not null;
+-- Daily results can only be saved for today (or yesterday, for a try that ran over midnight),
+-- and can't be deleted until two days later, so nobody can delete a bad try and go again.
+drop policy if exists "own solves: insert" on public.solves;
+drop policy if exists "own solves: delete" on public.solves;
+create policy "own solves: insert" on public.solves for insert to authenticated with check (
+  user_id = (select auth.uid())
+  and (daily is null or daily >= (now() at time zone 'utc')::date - 1 and daily <= (now() at time zone 'utc')::date)
+);
+create policy "own solves: delete" on public.solves for delete to authenticated using (
+  user_id = (select auth.uid())
+  and (daily is null or daily < (now() at time zone 'utc')::date - 1)
+);
+
+-- Public results for one day's challenge: finished times first, then DNFs.
+create or replace function public.leaderboard_daily(day date, lim int default 50)
+returns table (name text, time_ms int, moves int, dnf boolean, solved_at timestamptz, scramble text, replay text)
+language sql stable security definer set search_path = ''
+as $$
+  select coalesce(nullif(p.display_name, ''), 'Anonymous cuber'), s.time_ms, s.moves, s.dnf, s.solved_at, s.scramble, s.replay
+  from public.solves s
+  join public.profiles p on p.id = s.user_id and p.on_leaderboard
+  where s.daily = day
+  order by s.dnf, s.time_ms, s.solved_at
+  limit least(greatest(lim, 1), 200);
+$$;
+revoke all on function public.leaderboard_daily(date, int) from public;
+grant execute on function public.leaderboard_daily(date, int) to anon, authenticated;
+
 -- "Delete my account": removes the signed-in person and, through the cascades above, all their data.
 create or replace function public.delete_my_account()
 returns void
