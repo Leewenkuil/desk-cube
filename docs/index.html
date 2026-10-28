@@ -646,6 +646,10 @@ img { max-width: 100%; }
             <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
             <span>Colour letters on stickers</span>
           </button>
+          <button class="theme-switch sound-switch letters-switch" id="facesBtn" role="switch" aria-checked="true">
+            <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
+            <span>Face letters on the centres (U F R …)</span>
+          </button>
           <span class="kp-note" id="schemeNote"></span>
         </div>
       </div>
@@ -1121,11 +1125,12 @@ img { max-width: 100%; }
     soft: { name: 'Soft', c: { U: 0xf4f2ea, D: 0xf2d14a, F: 0x5cb37f, B: 0x5b8ad6, R: 0xc94a5a, L: 0xee8a3c } },
     cvd: { name: 'Colour-blind friendly', c: { U: 0xf7f7f2, D: 0xffd21f, F: 0x2e7d32, B: 0x1e3a8a, R: 0x7a0019, L: 0xf08c2e } },
   };
-  const look = { scheme: 'classic', letters: false };
+  const look = { scheme: 'classic', letters: false, faces: true };
   try {
     const saved = JSON.parse(localStorage.getItem('deskcube-stickers') || 'null');
     if (saved && SCHEMES[saved.scheme]) look.scheme = saved.scheme;
     if (saved && saved.letters) look.letters = true;
+    if (saved && saved.faces === false) look.faces = false;
   } catch (e) {}
   const STICKER = { ...SCHEMES[look.scheme].c };
   const FACES = [
@@ -1374,6 +1379,7 @@ img { max-width: 100%; }
     }
     if (replay.on) stepReplay(now);
     stepFly(now);
+    updateFaceLabels();
     pulseHighlight(now);
     renderer.render(scene, camera);
     renderBack();
@@ -2295,6 +2301,65 @@ img { max-width: 100%; }
   }
   // After CSS_COLOR exists; the hint highlight materials copy this look when they're made.
   setLook(look.scheme, look.letters, true);
+  // Face letters: six labels fixed in the world over the centres, not stuck to the cubies.
+  // They follow the view like the notation does, so U always marks the top of the screen,
+  // and a face turn spins the centre underneath its label.
+  const FACE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+  const faceTex = {};
+  for (const k of 'UDFBRL') {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d');
+    g.fillStyle = 'rgba(17, 20, 23, 0.72)';
+    g.beginPath(); g.arc(64, 64, 60, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ffffff';
+    g.font = '700 76px "Chakra Petch", "Segoe UI", sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(k, 64, 70);
+    faceTex[k] = new THREE.CanvasTexture(c);
+    faceTex[k].anisotropy = 4;
+  }
+  const faceGeo = new THREE.PlaneGeometry(0.4, 0.4);
+  const faceLabels = new THREE.Group();
+  faceLabels.visible = look.faces;
+  for (const d of FACE_DIRS) {
+    const m = new THREE.Mesh(faceGeo, new THREE.MeshBasicMaterial({ map: faceTex.U, transparent: true, depthWrite: false }));
+    m.userData.dir = new THREE.Vector3(...d);
+    m.position.copy(m.userData.dir).multiplyScalar(1.497);
+    m.renderOrder = 1;
+    faceLabels.add(m);
+  }
+  scene.add(faceLabels);
+  let faceKey = '';
+  function updateFaceLabels() {
+    if (!faceLabels.visible) return;
+    const fr = viewFrame();
+    const key = 'UFR'.split('').map(k => fr[k].axis + fr[k].sign).join();
+    if (key === faceKey) return;
+    faceKey = key;
+    const vec = f => { const v = new THREE.Vector3(); v[f.axis] = f.sign; return v; };
+    const x = new THREE.Vector3(), mat = new THREE.Matrix4();
+    for (const m of faceLabels.children) {
+      const n = m.userData.dir;
+      const k = 'UDFBRL'.split('').find(k => vec(fr[k]).equals(n));
+      m.material.map = faceTex[k];
+      // Upright as on a cube net: sides read with U at the top, U with B at the top, D with F.
+      const up = vec(k === 'U' ? fr.B : k === 'D' ? fr.F : fr.U);
+      x.crossVectors(up, n);
+      m.quaternion.setFromRotationMatrix(mat.makeBasis(x, up, n));
+    }
+  }
+  function setFaces(on, quiet) {
+    look.faces = !!on;
+    faceLabels.visible = look.faces;
+    faceKey = '';
+    $('facesBtn').setAttribute('aria-checked', look.faces);
+    try { localStorage.setItem('deskcube-stickers', JSON.stringify(look)); } catch (e) {}
+    if (!quiet) accountSettingsChanged();
+  }
+  $('facesBtn').addEventListener('click', () => setFaces(!look.faces));
+  setFaces(look.faces, true);
   function paintMaps() {
     scene.updateMatrixWorld();
     const v = new THREE.Vector3(), d = new THREE.Vector3();
@@ -3780,6 +3845,7 @@ img { max-width: 100%; }
     if (typeof s.turnSpeed === 'number') setTurnSpeed(s.turnSpeed, true);
     if (s.sound && typeof s.sound.on === 'boolean') setSound(s.sound.on, s.sound.vol, true);
     if (s.stickers && SCHEMES[s.stickers.scheme]) setLook(s.stickers.scheme, s.stickers.letters, true);
+    if (s.stickers && typeof s.stickers.faces === 'boolean') setFaces(s.stickers.faces, true);
     if (typeof s.competition === 'boolean' && s.competition !== comp.on && !compSolving()) setComp(s.competition);
     // A solve paused on another computer opens here, paused, unless one is already going in this browser.
     const busy = paused || state.mode === 'running' || state.mode === 'ready';
