@@ -1147,7 +1147,7 @@ img { max-width: 100%; }
     timeEl.classList.toggle('running', state.mode === 'running');
     timeEl.classList.toggle('done', state.mode === 'solved');
     const compOn = compActive(), solving = state.mode === 'running' || state.mode === 'inspect';
-    $('pauseBtn').hidden = compOn || !(state.mode === 'running' || state.mode === 'ready') || state.scrambling;
+    $('pauseBtn').hidden = compOn || state.mode !== 'running';
     $('replayLastBtn').hidden = !(state.mode === 'solved' && lastReplay && lastReplay.replay);
     $('undoBtn').hidden = $('resetBtn').hidden = compOn;
     $('giveUpCompBtn').hidden = !compOn;
@@ -2696,7 +2696,9 @@ img { max-width: 100%; }
     paused = p;
     try { localStorage.setItem(PAUSE_KEY, JSON.stringify(p)); } catch (e) {}
     showTab('practice');
-    showPaused();
+    // Only a solve whose timer had started comes back paused. A scramble that was never started
+    // just comes back as it was, ready for the first turn.
+    if (p.prevMode === 'running') showPaused(); else resumeSolve();
     renderStages();
     return true;
   }
@@ -2721,7 +2723,8 @@ img { max-width: 100%; }
   $('resumeBtn').addEventListener('click', resumeSolve);
   // Giving up asks first, using the Reset confirmation.
   $('giveUpBtn').addEventListener('click', () => $('resetBtn').click());
-  // Closing or reloading the page mid-solve keeps the solve, paused.
+  // Closing or reloading the page keeps the scrambled cube: paused if the timer was running,
+  // otherwise just as it was.
   window.addEventListener('pagehide', pauseSolve);
   function loadPaused() {
     let p = null;
