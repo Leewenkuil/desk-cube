@@ -445,6 +445,12 @@
   .kp-layout .mode-switch { display: grid; }
   .speed-row { display: flex; align-items: center; gap: 10px; }
   .speed-row input { flex: 1; min-width: 0; accent-color: var(--accent); }
+  .scheme-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .scheme-pick button { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 7px 8px; font-size: 0.8rem; text-align: left; }
+  .scheme-pick button[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .scheme-sw { display: flex; gap: 3px; }
+  .scheme-sw i { width: 14px; height: 14px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25); }
+  .letters-switch { align-self: flex-start; min-width: 0; }
   .sound-switch { flex: none; padding: 6px 10px; font-size: 0.85rem; min-width: 84px; }
   .speed-row input:disabled { opacity: 0.4; }
   .speed-end { font-size: 0.78rem; color: var(--muted); }
@@ -618,6 +624,15 @@
             <input type="range" id="soundVol" min="5" max="100" step="5" value="60" aria-label="Volume">
           </div>
           <span class="kp-note">A click on each turn, a chime when the cube is solved, and beeps at 8 and 12 seconds of inspection.</span>
+        </div>
+        <div class="kp-layout">
+          <h3>Sticker colours</h3>
+          <div class="scheme-pick" id="schemePick" role="radiogroup" aria-label="Sticker colours"></div>
+          <button class="theme-switch sound-switch letters-switch" id="lettersBtn" role="switch" aria-checked="false">
+            <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
+            <span>Colour letters on stickers</span>
+          </button>
+          <span class="kp-note" id="schemeNote"></span>
         </div>
       </div>
     </details>
@@ -1082,7 +1097,23 @@
   new ResizeObserver(resize).observe(stage);
 
   // ---------- Cube ----------
-  const STICKER = { U: 0xf4f4f0, D: 0xffd21f, F: 0x16a34a, B: 0x1d5fd6, R: 0xd7262e, L: 0xff7a12 };
+  // Sticker colour sets. Each keeps its colours' names (the lessons say "white cross", "red edge").
+  // The colour-blind set was searched so every pair stays apart under red-weak, green-weak and
+  // blue-weak vision: mostly by making red a deep maroon and orange lighter. Letters on the
+  // stickers (W Y G B R O) are the extra help for anyone who still can't tell two apart.
+  const SCHEMES = {
+    classic: { name: 'Classic', c: { U: 0xf4f4f0, D: 0xffd21f, F: 0x16a34a, B: 0x1d5fd6, R: 0xd7262e, L: 0xff7a12 } },
+    bright: { name: 'Bright', c: { U: 0xffffff, D: 0xffe600, F: 0x00d84a, B: 0x0a6cff, R: 0xff1f3d, L: 0xff8c00 } },
+    soft: { name: 'Soft', c: { U: 0xf4f2ea, D: 0xf2d14a, F: 0x5cb37f, B: 0x5b8ad6, R: 0xc94a5a, L: 0xee8a3c } },
+    cvd: { name: 'Colour-blind friendly', c: { U: 0xf7f7f2, D: 0xffd21f, F: 0x2e7d32, B: 0x1e3a8a, R: 0x7a0019, L: 0xf08c2e } },
+  };
+  const look = { scheme: 'classic', letters: false };
+  try {
+    const saved = JSON.parse(localStorage.getItem('deskcube-stickers') || 'null');
+    if (saved && SCHEMES[saved.scheme]) look.scheme = saved.scheme;
+    if (saved && saved.letters) look.letters = true;
+  } catch (e) {}
+  const STICKER = { ...SCHEMES[look.scheme].c };
   const FACES = [
     { n: [1, 0, 0], c: 'R', rot: [0, Math.PI / 2, 0] },
     { n: [-1, 0, 0], c: 'L', rot: [0, -Math.PI / 2, 0] },
@@ -1104,6 +1135,10 @@
   const bodyGeo = new THREE.BoxGeometry(0.97, 0.97, 0.97);
   const bodyMat = new THREE.MeshStandardMaterial({ color: 0x111417, roughness: 0.6 });
   const stickerGeo = roundedSquare(0.84, 0.1);
+  {
+    const uv = stickerGeo.attributes.uv, pos = stickerGeo.attributes.position;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / 0.84 + 0.5, pos.getY(i) / 0.84 + 0.5);
+  }
   const stickerMats = {};
   for (const k in STICKER) stickerMats[k] = new THREE.MeshStandardMaterial({ color: STICKER[k], roughness: 0.35 });
 
@@ -2125,6 +2160,28 @@
     if (!quiet) accountSettingsChanged();
   }
   $('soundBtn').addEventListener('click', () => { setSound(!sound.on); if (sound.on) playClick(); });
+  function setLook(scheme, letters, quiet) {
+    if (SCHEMES[scheme]) look.scheme = scheme;
+    look.letters = !!letters;
+    applyLook();
+    for (const b of $('schemePick').children) b.setAttribute('aria-checked', b.dataset.scheme === look.scheme);
+    $('lettersBtn').setAttribute('aria-checked', look.letters);
+    $('schemeNote').textContent = look.scheme === 'cvd'
+      ? 'Red is a deep maroon and orange is lighter, so every pair stays apart for red-weak, green-weak and blue-weak eyes.'
+      : 'The letters (W Y G B R O) name each colour, for anyone who finds two of them hard to tell apart.';
+    try { localStorage.setItem('deskcube-stickers', JSON.stringify(look)); } catch (e) {}
+    if (!quiet) accountSettingsChanged();
+  }
+  for (const key in SCHEMES) {
+    const b = document.createElement('button');
+    b.setAttribute('role', 'radio');
+    b.dataset.scheme = key;
+    b.innerHTML = '<span class="scheme-sw" aria-hidden="true">' + 'UDFBRL'.split('').map(k => `<i style="background:#${SCHEMES[key].c[k].toString(16).padStart(6, '0')}"></i>`).join('') + '</span>';
+    b.append(SCHEMES[key].name);
+    b.addEventListener('click', () => setLook(key, look.letters));
+    $('schemePick').appendChild(b);
+  }
+  $('lettersBtn').addEventListener('click', () => setLook(look.scheme, !look.letters));
   $('soundVol').addEventListener('input', e => setSound(true, +e.target.value / 100));
   $('soundVol').addEventListener('change', () => playChime('step'));
   try { $('kpSettings').open = localStorage.getItem('deskcube-kpsettings') === '1'; } catch (e) {}
@@ -2190,6 +2247,40 @@
   // Paint the maps with the colors of the centers where they are now (they move on x/y/z and slices).
   const CSS_COLOR = {};
   for (const k in STICKER) CSS_COLOR[k] = '#' + STICKER[k].toString(16).padStart(6, '0');
+  const LETTER = { U: 'W', D: 'Y', F: 'G', B: 'B', R: 'R', L: 'O' };
+  // A sticker face with its colour's first letter, dark ink on light colours and light ink on dark.
+  function letterTexture(k) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d'), hex = STICKER[k];
+    g.fillStyle = CSS_COLOR[k];
+    g.fillRect(0, 0, 128, 128);
+    const lum = 0.2126 * (hex >> 16 & 255) + 0.7152 * (hex >> 8 & 255) + 0.0722 * (hex & 255);
+    g.fillStyle = lum > 140 ? 'rgba(0, 0, 0, 0.55)' : 'rgba(255, 255, 255, 0.8)';
+    g.font = '700 64px "Chakra Petch", "Segoe UI", sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(LETTER[k], 64, 68);
+    const tex = new THREE.CanvasTexture(c);
+    tex.anisotropy = 4;
+    return tex;
+  }
+  function applyLook() {
+    for (const k in STICKER) {
+      STICKER[k] = SCHEMES[look.scheme].c[k];
+      CSS_COLOR[k] = '#' + STICKER[k].toString(16).padStart(6, '0');
+      for (const m of [stickerMats[k], hiMats && hiMats[k]]) {
+        if (!m) continue;
+        if (m.map) m.map.dispose();
+        m.map = look.letters ? letterTexture(k) : null;
+        m.color.setHex(look.letters ? 0xffffff : STICKER[k]);
+        m.needsUpdate = true;
+      }
+    }
+    paintMaps();
+  }
+  // After CSS_COLOR exists; the hint highlight materials copy this look when they're made.
+  setLook(look.scheme, look.letters, true);
   function paintMaps() {
     scene.updateMatrixWorld();
     const v = new THREE.Vector3(), d = new THREE.Vector3();
@@ -2471,7 +2562,7 @@
   }
 
   // Pulsing highlight on the stickers of the piece a hint is about.
-  const hiMats = {};
+  var hiMats = {};
   for (const k in STICKER) { hiMats[k] = stickerMats[k].clone(); hiMats[k].emissive = new THREE.Color(0xffffff); }
   let highlighted = [];
   function setHighlight(meshes) {
@@ -3664,7 +3755,7 @@
   }
 
   function currentSettings() {
-    return { mode: isSpeed() ? 'speed' : 'learn', layout: keyLayout, zoom: Math.round(view.zoom * 100) / 100, theme: themeChoice, paused: paused || null, turnSpeed, competition: comp.on, sound: { on: sound.on, vol: sound.vol } };
+    return { mode: isSpeed() ? 'speed' : 'learn', layout: keyLayout, zoom: Math.round(view.zoom * 100) / 100, theme: themeChoice, paused: paused || null, turnSpeed, competition: comp.on, sound: { on: sound.on, vol: sound.vol }, stickers: { ...look } };
   }
   function applySettings(s) {
     acct.applying = true;
@@ -3674,6 +3765,7 @@
     if (s.theme === 'light' || s.theme === 'dark') setTheme(s.theme);
     if (typeof s.turnSpeed === 'number') setTurnSpeed(s.turnSpeed, true);
     if (s.sound && typeof s.sound.on === 'boolean') setSound(s.sound.on, s.sound.vol, true);
+    if (s.stickers && SCHEMES[s.stickers.scheme]) setLook(s.stickers.scheme, s.stickers.letters, true);
     if (typeof s.competition === 'boolean' && s.competition !== comp.on && !compSolving()) setComp(s.competition);
     // A solve paused on another computer opens here, paused, unless one is already going in this browser.
     const busy = paused || state.mode === 'running' || state.mode === 'ready';
