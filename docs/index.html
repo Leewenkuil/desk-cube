@@ -361,6 +361,13 @@ img { max-width: 100%; }
 
   /* Learning / Speedcubing mode: speed mode hides every .learn-only element. */
   :root[data-mode="speed"] .learn-only { display: none !important; }
+  /* Cube size: lessons, hints, the trainer, the daily challenge and competitions are 3×3 only. */
+  :root[data-size="2"] .three-only, :root[data-size="4"] .three-only { display: none !important; }
+  :root:not([data-size="4"]) .four-only { display: none !important; }
+  .size-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .size-row .size-label { color: var(--muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .size-row .mode-switch { grid-template-columns: repeat(3, 1fr); }
+  .size-row .mode-switch button { font-family: var(--font-mono); }
   .mode-switch { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
   .mode-switch button { border: 0; background: transparent; padding: 5px 12px; color: var(--muted); border-radius: 7px; }
   .mode-switch button[aria-checked="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
@@ -583,7 +590,7 @@ img { max-width: 100%; }
   <header>
     <div class="brand">
       <h1>Desk Cube</h1>
-      <span>3×3 practice cube</span>
+      <span id="brandSub">3×3 practice cube</span>
     </div>
     <div class="header-actions">
       <div class="mode-switch" role="radiogroup" aria-label="Mode">
@@ -591,7 +598,7 @@ img { max-width: 100%; }
         <button role="radio" id="modeSpeed" aria-checked="false" title="Hide all learning help">Solving</button>
       </div>
       <button class="learn-btn" id="keysBtn" aria-controls="keysPanel" title="Show or hide the controls (?)">Controls</button>
-      <button class="learn-btn learn-only" id="learnBtn">Learn to solve</button>
+      <button class="learn-btn learn-only three-only" id="learnBtn">Learn to solve</button>
       <button class="theme-switch" id="themeBtn" role="switch" aria-checked="false" title="Switch between light and dark">
         <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
         <span>Dark</span>
@@ -756,6 +763,7 @@ img { max-width: 100%; }
       <p class="acct-stats" id="acctStats"></p>
       <div class="acct-solves" id="acctSolves" hidden>
         <div class="stats acct-tiles" id="acctTiles"></div>
+        <p class="acct-note" id="acctSizeNote" hidden></p>
         <p class="acct-note">Ao5 and Ao12 are your current averages of the last 5 and 12 solves, leaving out the fastest and slowest of each set.</p>
         <section class="prog" id="progBox" hidden>
           <div class="prog-head">
@@ -848,7 +856,15 @@ img { max-width: 100%; }
   </div>
 
   <aside id="rail">
-    <div class="tabs learn-only" role="tablist">
+    <div class="size-row">
+      <span class="size-label" id="sizeLabel">Cube</span>
+      <div class="mode-switch" id="sizePick" role="radiogroup" aria-labelledby="sizeLabel">
+        <button role="radio" data-size="2" aria-checked="false" title="2×2: corners only">2×2</button>
+        <button role="radio" data-size="3" aria-checked="true" title="3×3: the classic cube, with lessons and hints">3×3</button>
+        <button role="radio" data-size="4" aria-checked="false" title="4×4: wide turns move the outer two layers">4×4</button>
+      </div>
+    </div>
+    <div class="tabs learn-only three-only" role="tablist">
       <button role="tab" id="tab-practice" aria-selected="true" aria-controls="panel-practice">Practice</button>
       <button role="tab" id="tab-lesson" aria-selected="false" aria-controls="panel-lesson">Lesson</button>
       <button role="tab" id="tab-trainer" aria-selected="false" aria-controls="panel-trainer">Trainer</button>
@@ -932,7 +948,7 @@ img { max-width: 100%; }
       <button id="viewBtn" title="Return to the starting camera angle">Reset view</button>
     </div>
 
-    <section class="daily" id="dailyBox">
+    <section class="daily three-only" id="dailyBox">
       <div class="coach-head">
         <h2>Daily challenge <span class="daily-num" id="dailyNum"></span></h2>
         <span class="daily-next" id="dailyNext"></span>
@@ -945,7 +961,7 @@ img { max-width: 100%; }
       </div>
     </section>
 
-    <section class="comp solve-only" id="compBox">
+    <section class="comp solve-only three-only" id="compBox">
       <button class="theme-switch comp-switch" id="compBtn" role="switch" aria-checked="false">
         <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
         <span>Official competition</span>
@@ -956,7 +972,7 @@ img { max-width: 100%; }
       <button id="compExitBtn" hidden>Exit competition</button>
     </section>
 
-    <section class="coach learn-only">
+    <section class="coach learn-only three-only">
       <div class="coach-head">
         <h2>Solving steps</h2>
         <button id="hintBtn" class="primary" title="Show the next moves (H)">Hint <kbd>H</kbd></button>
@@ -1003,6 +1019,15 @@ img { max-width: 100%; }
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // ---------- Scene ----------
+  // Cube size: 2, 3 or 4. Pieces sit at whole-number coordinates on odd cubes and at halves on
+  // even ones (±0.5, ±1.5), so the outer layers are always at ±(n − 1) / 2.
+  const cube = { n: 3 };
+  try { const n = +localStorage.getItem('deskcube-size'); if (n === 2 || n === 4) cube.n = n; } catch (e) {}
+  document.documentElement.dataset.size = cube.n;
+  const half = () => (cube.n - 1) / 2;
+  const snapC = v => cube.n % 2 ? Math.round(v) : Math.floor(v) + 0.5;
+  // The camera backs off for bigger cubes so every size fills about the same space (the 2×2 a little bigger).
+  const sizeScale = () => cube.n === 2 ? 0.8 : cube.n / 3;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   stage.prepend(renderer.domElement);
@@ -1056,7 +1081,7 @@ img { max-width: 100%; }
     camera.aspect = w / h;
     // Shift the cube left so the view navigator in the top-right corner doesn't cover it.
     const shift = w > 560 ? 105 : 0;
-    view.base = 9.5 * Math.max(1, 0.95 / Math.max((w - shift * 2) / h, 0.3));
+    view.base = 9.5 * sizeScale() * Math.max(1, 0.95 / Math.max((w - shift * 2) / h, 0.3));
     view.r = view.base * view.zoom;
     if (shift) camera.setViewOffset(w, h, shift, 0, w, h); else camera.clearViewOffset();
     camera.updateProjectionMatrix();
@@ -1107,7 +1132,7 @@ img { max-width: 100%; }
   }
   new ResizeObserver(sizeBack).observe(document.getElementById('backView'));
   function renderBack() {
-    backCam.position.copy(camera.position).normalize().multiplyScalar(-9.2);
+    backCam.position.copy(camera.position).normalize().multiplyScalar(-9.2 * sizeScale());
     backCam.up.copy(camera.up);
     backCam.lookAt(ORIGIN);
     backRenderer.render(scene, backCam);
@@ -1164,20 +1189,26 @@ img { max-width: 100%; }
   let cubies = [], bodies = [], stickers = [];
   const pivot = new THREE.Object3D();
   scene.add(pivot);
+  // An empty piece at the middle that turns only with the whole cube. Even cubes have no fixed
+  // centres, so the view maps read each side's colour from it.
+  const core = new THREE.Object3D();
+  scene.add(core);
 
   function buildCube() {
     for (const c of cubies) scene.remove(c);
     highlighted = [];
     if (hint.result) { hint.result = null; renderHint(); }
     cubies = []; bodies = []; stickers = [];
-    for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) {
-      if (!x && !y && !z) continue;
+    core.quaternion.identity();
+    const H = half();
+    for (let x = -H; x <= H; x++) for (let y = -H; y <= H; y++) for (let z = -H; z <= H; z++) {
+      if (Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) !== H) continue;   // inner pieces can't be seen
       const cubie = new THREE.Group();
       cubie.position.set(x, y, z);
       const body = new THREE.Mesh(bodyGeo, bodyMat);
       cubie.add(body); bodies.push(body);
       for (const f of FACES) {
-        if (f.n[0] * x + f.n[1] * y + f.n[2] * z !== 1) continue;
+        if (f.n[0] * x + f.n[1] * y + f.n[2] * z !== H) continue;
         const s = new THREE.Mesh(stickerGeo, stickerMats[f.c]);
         s.position.set(f.n[0] * 0.487, f.n[1] * 0.487, f.n[2] * 0.487);
         s.rotation.set(...f.rot);
@@ -1214,23 +1245,33 @@ img { max-width: 100%; }
     M: ['L', 0], E: ['D', 0], S: ['F', 0], x: ['R', null], y: ['U', null], z: ['F', null],
     u: ['U', 'wide'], d: ['D', 'wide'], r: ['R', 'wide'], l: ['L', 'wide'], f: ['F', 'wide'], b: ['B', 'wide'],
   };
-  function decode(m, fr) {
+  // On the 4×4, "2R" is the inner layer next to R on its own. Middle slices (M E S) exist only on
+  // the 3×3 and wide turns only from the 3×3 up; those come back null on the other sizes.
+  function decode(m, fr, n = cube.n) {
+    const inner = n === 4 && m[0] === '2';
+    if (inner) m = m.slice(1);
+    if (!LETTERS[m[0]]) return null;
     const [faceKey, layer] = LETTERS[m[0]];
-    const face = fr[faceKey];
+    if ((n !== 3 && layer === 0) || (n === 2 && layer === 'wide') || (inner && layer !== 'face')) return null;
+    const face = fr[faceKey], H = (n - 1) / 2;
     const turns = m[1] === "'" ? -1 : m[1] === '2' ? 2 : 1;
-    const out = { axis: face.axis, layer: layer === 'face' || layer === 'wide' ? face.sign : layer, angle: -face.sign * turns * Math.PI / 2 };
+    const out = { axis: face.axis, layer: layer === 'face' || layer === 'wide' ? face.sign * (inner ? H - 1 : H) : layer, angle: -face.sign * turns * Math.PI / 2 };
     if (layer === 'wide') out.wide = true;
     return out;
   }
   function labelFor(axis, layer, sign, fr, wide) {
+    const H = half();
     for (const k of wide ? 'udrlfb' : 'UDRLFBMES') {
       const [faceKey, l] = LETTERS[k], face = fr[faceKey];
-      if (face.axis !== axis || (l === 'face' || l === 'wide' ? face.sign : l) !== layer) continue;
-      return sign === -face.sign ? k : k + "'";
+      if (face.axis !== axis) continue;
+      const turn = sign === -face.sign ? k : k + "'";
+      if ((l === 'face' || l === 'wide' ? face.sign * H : l) === layer) return turn;
+      if (l === 'face' && cube.n === 4 && layer === face.sign * (H - 1)) return '2' + turn;
     }
   }
-  // Does a turn move the piece at this coordinate (along the turn's axis)?
-  const turnsPiece = (m, p) => m.layer === null || p === m.layer || (!!m.wide && p === 0);
+  // Does a turn move the piece at this coordinate (along the turn's axis)? A wide turn also takes
+  // the layer just inside its face.
+  const turnsPiece = (m, p) => m.layer === null || p === m.layer || (!!m.wide && p === m.layer - Math.sign(m.layer));
 
   // ---------- Sounds ----------
   // Made with Web Audio, no sound files: a short plastic click for each layer turn, a chime when
@@ -1326,7 +1367,7 @@ img { max-width: 100%; }
 
   // item: { label, axis, layer, angle, ...flags }
   function enqueue(item) { queue.push(item); }
-  function enqueueLabel(m, opts = {}, fr = viewFrame()) { enqueue({ label: m, ...decode(m, fr), ...opts }); }
+  function enqueueLabel(m, opts = {}, fr = viewFrame()) { const d = decode(m, fr); if (d) enqueue({ label: m, ...d, ...opts }); }
 
   function startNext() {
     const item = queue.shift();
@@ -1334,7 +1375,8 @@ img { max-width: 100%; }
     const { axis, layer, angle } = item;
     pivot.rotation.set(0, 0, 0);
     pivot.updateMatrixWorld();
-    const sel = cubies.filter(c => turnsPiece(item, Math.round(c.position[axis])));
+    const sel = cubies.filter(c => turnsPiece(item, snapC(c.position[axis])));
+    if (layer === null) sel.push(core);
     for (const c of sel) pivot.attach(c);
     const base = item.replay ? Math.min(turnMs, 110) / replay.speed : item.fast ? Math.min(55, turnMs) : turnMs;
     // Keep up with fast typing (or a fast replay): the more turns are waiting, the quicker each one plays.
@@ -1349,7 +1391,8 @@ img { max-width: 100%; }
     pivot.updateMatrixWorld();
     for (const c of anim.sel) {
       scene.attach(c);
-      c.position.set(Math.round(c.position.x), Math.round(c.position.y), Math.round(c.position.z));
+      if (c === core) c.position.set(0, 0, 0);
+      else c.position.set(snapC(c.position.x), snapC(c.position.y), snapC(c.position.z));
       snapM.makeRotationFromQuaternion(c.quaternion);
       for (let i = 0; i < 16; i++) snapM.elements[i] = Math.round(snapM.elements[i]);
       c.quaternion.setFromRotationMatrix(snapM);
@@ -1394,14 +1437,16 @@ img { max-width: 100%; }
   // modes: idle (free play) · ready (scrambled, timer waits) · running · solved
 
   try {
-    const saved = JSON.parse(localStorage.getItem('deskcube') || '{}');
+    const saved = JSON.parse(localStorage.getItem(statsKey()) || '{}');
     if (saved.best) state.best = saved.best;
     if (saved.solves) state.solves = saved.solves;
   } catch (e) {}
+  // Each size keeps its own best and count; the 3×3 keeps the original key.
+  function statsKey(n = cube.n) { return n === 3 ? 'deskcube' : 'deskcube-' + n; }
   function save() {
     // Signed in, best and solves come from the account; this browser keeps its own signed-out record.
     if (acct && acct.user) return;
-    try { localStorage.setItem('deskcube', JSON.stringify({ best: state.best, solves: state.solves })); } catch (e) {}
+    try { localStorage.setItem(statsKey(), JSON.stringify({ best: state.best, solves: state.solves })); } catch (e) {}
   }
 
   function fmt(ms) {
@@ -1515,7 +1560,7 @@ img { max-width: 100%; }
       if (pb) state.best = t;
       save();
       const replayText = (state.rec || []).join(' ');
-      lastReplay = { scramble: state.scrambleText, replay: replayText, time: t };
+      lastReplay = { scramble: state.scrambleText, replay: replayText, time: t, size: cube.n };
       setStatus(`Solved in ${fmt(t)} with ${state.moves} moves.${pb ? ' New best!' : ''}`, true);
       if (dailyOn()) dailySolveDone(t, false, replayText);
       else if (compActive() && comp.roundId) compSolveDone(t, false, replayText);
@@ -1532,7 +1577,7 @@ img { max-width: 100%; }
     if ((state.mode === 'ready' || state.mode === 'inspect') && item.layer !== null) startTimer(now);
     enqueue({ ...item, user: true, at: now });
   }
-  function userMove(m) { playerTurn({ label: m, ...decode(m, viewFrame()) }); }
+  function userMove(m) { const d = decode(m, viewFrame()); if (d) playerTurn({ label: m, ...d }); }
   function startTimer(now) {
     state.mode = 'running';
     state.start = now;
@@ -1540,13 +1585,14 @@ img { max-width: 100%; }
     renderPanel();
   }
 
-  // 22 face turns, never the same face twice in a row or three on one axis. `rand` can be seeded (daily challenge).
-  function scrambleSeq(rand = Math.random) {
-    const axisOf = { U: 'y', D: 'y', R: 'x', L: 'x', F: 'z', B: 'z' };
-    const faces = 'UDRLFB', seq = [];
+  // Face turns (11 on the 2×2, 22 on the 3×3, 40 on the 4×4, where wide u, r and f join in), never
+  // the same turn twice in a row or three on one axis. `rand` can be seeded (daily challenge).
+  function scrambleSeq(rand = Math.random, n = cube.n) {
+    const axisOf = { U: 'y', D: 'y', R: 'x', L: 'x', F: 'z', B: 'z', u: 'y', r: 'x', f: 'z' };
+    const faces = n === 4 ? 'UDRLFBurf' : 'UDRLFB', seq = [], len = { 2: 11, 3: 22, 4: 40 }[n];
     let lastAxis = null, prevFace = null;
-    while (seq.length < 22) {
-      const f = faces[Math.floor(rand() * 6)];
+    while (seq.length < len) {
+      const f = faces[Math.floor(rand() * faces.length)];
       if (f === prevFace) continue;
       if (axisOf[f] === lastAxis && seq.length > 1 && axisOf[seq[seq.length - 2][0]] === lastAxis) continue;
       const m = f + ['', "'", '2'][Math.floor(rand() * 3)];
@@ -1658,7 +1704,7 @@ img { max-width: 100%; }
     }
     const pos = new THREE.Vector3();
     drag.cubie.getWorldPosition(pos);
-    const layer = Math.round(pos[best.axis]), sign = Math.sign(best.score);
+    const layer = snapC(pos[best.axis]), sign = Math.sign(best.score);
     if (state.scrambling) return;
     playerTurn({ label: labelFor(best.axis, layer, sign, viewFrame()), axis: best.axis, layer, angle: sign * Math.PI / 2 });
   });
@@ -2048,7 +2094,7 @@ img { max-width: 100%; }
   const pts = list => list.map(p => iso(p).map(n => n.toFixed(3)).join(',')).join(' ');
 
   function moveIcon(m) {
-    const mv = decode(m, HOME), { axis, layer, angle } = mv;
+    const mv = decode(m, HOME, 3), { axis, layer, angle } = mv;
     const faces = [[V(0, 1, 0), V(1, 0, 0), V(0, 0, 1)], [V(0, 0, 1), V(1, 0, 0), V(0, 1, 0)], [V(1, 0, 0), V(0, 0, 1), V(0, 1, 0)]];
     let out = '';
     for (const [n, e1, e2] of faces) {
@@ -2095,7 +2141,7 @@ img { max-width: 100%; }
   };
   for (const [group, k, name] of KEY_INFO) {
     const row = document.createElement('div');
-    row.className = 'kp-row';
+    row.className = 'kp-row' + ('MES'.includes(k) ? ' three-only' : '');
     row.title = name;
     row.innerHTML = `${moveIcon(k)}<div class="kp-name"><b>${k}</b><span>${SHORT_NAME[k]}</span></div>
       <button class="kp-move" id="kp-${k}" aria-label="${k}, clockwise" title="${k}: ${name}, clockwise"><span class="kp-keys" data-move="${k}"></span></button>
@@ -2326,11 +2372,18 @@ img { max-width: 100%; }
   for (const d of FACE_DIRS) {
     const m = new THREE.Mesh(faceGeo, new THREE.MeshBasicMaterial({ map: faceTex.U, transparent: true, depthWrite: false }));
     m.userData.dir = new THREE.Vector3(...d);
-    m.position.copy(m.userData.dir).multiplyScalar(1.497);
     m.renderOrder = 1;
     faceLabels.add(m);
   }
   scene.add(faceLabels);
+  // Even cubes have no centre sticker, just a crossing of gaps, so their label is bigger to stand out.
+  function placeFaceLabels() {
+    for (const m of faceLabels.children) {
+      m.position.copy(m.userData.dir).multiplyScalar(half() + 0.497);
+      m.scale.setScalar(cube.n % 2 ? 1 : 1.6);
+    }
+  }
+  placeFaceLabels();
   let faceKey = '';
   function updateFaceLabels() {
     if (!faceLabels.visible) return;
@@ -2359,8 +2412,53 @@ img { max-width: 100%; }
     if (!quiet) accountSettingsChanged();
   }
   $('facesBtn').addEventListener('click', () => setFaces(!look.faces));
+
+  // Switch to another size of cube: everything that depends on the size follows, and the new cube starts solved.
+  function useSize(n) {
+    cube.n = n;
+    document.documentElement.dataset.size = n;
+    $('brandSub').textContent = `${n}×${n} practice cube`;
+    for (const b of $('sizePick').children) b.setAttribute('aria-checked', +b.dataset.size === n);
+    try { localStorage.setItem('deskcube-size', String(n)); } catch (e) {}
+    if (n !== 3) showTab('practice');
+    placeFaceLabels();
+    resize();
+    // Records are per size.
+    if (acct && acct.user) { if (acct.loaded) useAccountStats(); }
+    else { const l = localStats(); state.best = l.best; state.solves = l.solves; }
+    if (acct && acct.user && acctDialog.open) renderAccount();
+  }
+  // Returns false when a solve can't be left right now (a daily try, a competition solve, a paused solve).
+  function setSize(n, quiet) {
+    if (n === cube.n) return true;
+    if (dailyOn() || strictSolving() || paused || state.scrambling) return false;
+    useSize(n);
+    reset();
+    setStatus(`Solved ${n}×${n} cube. Press Scramble to start a timed solve.`);
+    if (!quiet) accountSettingsChanged();
+    return true;
+  }
+  for (const b of $('sizePick').children) b.addEventListener('click', () => {
+    const n = +b.dataset.size;
+    if (n === cube.n) return;
+    if (dailyOn() || strictSolving()) { setStatus('Finish this solve before changing the cube size.'); return; }
+    if (state.mode === 'running') {
+      askConfirm({
+        title: `Switch to the ${n}×${n}?`, ok: 'Switch',
+        text: 'You\'re in the middle of a solve. Switching ends it, and the new cube starts solved.',
+      }, () => setSize(n));
+    } else setSize(n);
+  });
   setFaces(look.faces, true);
   function paintMaps() {
+    if (cube.n % 2 === 0) {
+      const d = new THREE.Vector3();
+      for (const f of FACES) {
+        d.set(...f.n).applyQuaternion(core.quaternion);
+        for (const el of faceEls[`${Math.round(d.x)},${Math.round(d.y)},${Math.round(d.z)}`] || []) el.style.background = CSS_COLOR[f.c];
+      }
+      return;
+    }
     scene.updateMatrixWorld();
     const v = new THREE.Vector3(), d = new THREE.Vector3();
     for (const s of stickers) {
@@ -2666,6 +2764,7 @@ img { max-width: 100%; }
     $('stages').appendChild(li);
   });
   function renderStages() {
+    if (cube.n !== 3) return;
     const st = readState(), L = layout(st), counts = stageCounts(st, L), stage = stageOf(counts);
     [...$('stages').children].forEach((li, i) => {
       li.className = i < stage ? 'done' : i === stage ? 'now' : '';
@@ -2681,7 +2780,7 @@ img { max-width: 100%; }
     return d > 0 ? 'top layer' : d < 0 ? 'bottom layer' : 'middle layer';
   }
   function getHint() {
-    if (isSpeed() || state.scrambling || anim || queue.length) return;
+    if (isSpeed() || state.scrambling || anim || queue.length || cube.n !== 3) return;
     const st = readState();
     const h = findHint(st);
     hint.result = h; hint.pos = 0; hint.stale = false;
@@ -3003,12 +3102,14 @@ img { max-width: 100%; }
 
   // ---------- Buttons & keyboard ----------
   const pad = $('pad');
-  for (const k of ['U', 'D', 'L', 'R', 'F', 'B', 'M', 'E', 'S', 'x', 'y', 'z']) {
+  for (const k of ['U', 'D', 'L', 'R', 'F', 'B', 'u', 'd', 'l', 'r', 'f', 'b', 'M', 'E', 'S', 'x', 'y', 'z']) {
     for (const m of [k, k + "'"]) {
       const b = document.createElement('button');
+      if ('MES'.includes(k)) b.className = 'three-only';
+      if ('udlrfb'.includes(k)) b.className = 'four-only';
       b.textContent = m;
       b.id = 'pad-' + k + (m.length > 1 ? 'p' : '');
-      b.title = LETTERS[k][1] === null ? 'Rotate the whole cube' : 'Turn ' + m;
+      b.title = LETTERS[k][1] === null ? 'Rotate the whole cube' : LETTERS[k][1] === 'wide' ? `Turn the outer two layers (${m[0].toUpperCase()}w${m.slice(1)})` : 'Turn ' + m;
       b.addEventListener('click', () => userMove(m));
       pad.appendChild(b);
     }
@@ -3105,30 +3206,33 @@ img { max-width: 100%; }
   var lastReplay = null;
   function encodeTurn(m, t) {
     const q = ((Math.round(m.angle / (Math.PI / 2)) % 4) + 4) % 4;
-    const layer = m.layer === null ? '*' : m.layer === 1 ? '+' : m.layer === -1 ? '-' : '0';
+    // Layers: + and - are the outer ones, 0 the 3×3 middle, a and b the 4×4 inner ones.
+    const H = half();
+    const layer = m.layer === null ? '*' : m.layer === H ? '+' : m.layer === -H ? '-' : m.layer === 0 ? '0' : m.layer > 0 ? 'a' : 'b';
     return `${m.axis}${layer}${m.wide ? 'w' : ''}${q}@${Math.round(t / 10)}`;
   }
   function decodeReplay(text) {
     const out = [];
     for (const tok of (text || '').split(' ')) {
-      const m = /^([xyz])([+\-0*])(w?)([123])@(\d+)$/.exec(tok);
+      const m = /^([xyz])([+\-0*ab])(w?)([123])@(\d+)$/.exec(tok);
       if (!m) continue;
-      const q = +m[4];
-      out.push({ axis: m[1], layer: m[2] === '*' ? null : m[2] === '+' ? 1 : m[2] === '-' ? -1 : 0, wide: m[3] === 'w', angle: (q === 3 ? -1 : q) * Math.PI / 2, t: +m[5] * 10 });
+      const q = +m[4], H = half();
+      out.push({ axis: m[1], layer: { '*': null, '+': H, '-': -H, '0': 0, a: H - 1, b: 1 - H }[m[2]], wide: m[3] === 'w', angle: (q === 3 ? -1 : q) * Math.PI / 2, t: +m[5] * 10 });
     }
     return out;
   }
   // src: { scramble, replay, time, title }
   function startReplay(src) {
+    if (!src.scramble || paused) return false;
+    if (src.size && src.size !== cube.n && !setSize(src.size, true)) return false;
     const turns = decodeReplay(src.replay);
-    if (!src.scramble || !turns.length) return false;
-    if (paused) return false;
+    if (!turns.length) return false;
     if (anim) finishAnim();
     queue = [];
     buildCube();
     placeCamera();
     const fr = viewFrame();
-    for (const m of src.scramble.split(' ')) if (LETTERS[m[0]]) turnNow(decode(m, fr));
+    for (const m of src.scramble.split(' ')) { const d = decode(m, fr); if (d) turnNow(d); }
     Object.assign(state, { mode: 'replay', moves: 0, history: [], scrambling: false, rec: null });
     lesson.ready = false;
     showTab('practice');
@@ -3190,7 +3294,7 @@ img { max-width: 100%; }
   // a give-up counts as DNF (slowest), and two DNFs make the whole round DNF.
   var comp = { on: false, roundId: null, results: [] };
   try { comp.on = localStorage.getItem('deskcube-comp') === '1'; } catch (e) {}
-  function compActive() { return !!comp && comp.on && isSpeed(); }
+  function compActive() { return !!comp && comp.on && isSpeed() && cube.n === 3; }
   function compSolving() { return compActive() && (state.mode === 'running' || state.mode === 'inspect'); }
   function newId() {
     try { return crypto.randomUUID(); } catch (e) {
@@ -3332,7 +3436,7 @@ img { max-width: 100%; }
 
   function startDaily() {
     const day = todayUTC();
-    if (dailyToday() || daily.active || state.scrambling) return;
+    if (dailyToday() || daily.active || state.scrambling || cube.n !== 3) return;
     if (compActive() && comp.roundId && comp.results.length < 5) {
       setStatus('Finish or exit your competition round before the daily challenge.');
       return;
@@ -3412,6 +3516,7 @@ img { max-width: 100%; }
     return {
       elapsed: Math.round(elapsed), prevMode, moves: state.moves, scramble: state.scrambleText || '', rec: state.rec || [],
       history: state.history.slice(-500).map(h => ({ label: h.label, axis: h.axis, layer: h.layer, angle: h.angle, wide: !!h.wide })),
+      n: cube.n,
       cube: cubies.map(c => [c.position.x, c.position.y, c.position.z, c.quaternion.x, c.quaternion.y, c.quaternion.z, c.quaternion.w].map(r)),
       at: Date.now(),
     };
@@ -3456,14 +3561,16 @@ img { max-width: 100%; }
     storePaused();
   }
   function restorePaused(p) {
-    if (!p || !Array.isArray(p.cube) || p.cube.length !== 26) return false;
+    const n = p && (p.n || 3);
+    if (!p || !Array.isArray(p.cube) || p.cube.length !== n ** 3 - Math.max(0, n - 2) ** 3) return false;
     if (anim) finishAnim();
     queue = [];
+    if (n !== cube.n) useSize(n);
     buildCube();
     const m = new THREE.Matrix4();
     cubies.forEach((c, i) => {
       const v = p.cube[i];
-      c.position.set(Math.round(v[0]), Math.round(v[1]), Math.round(v[2]));
+      c.position.set(snapC(v[0]), snapC(v[1]), snapC(v[2]));
       c.quaternion.set(v[3], v[4], v[5], v[6]).normalize();
       m.makeRotationFromQuaternion(c.quaternion);
       for (let k = 0; k < 16; k++) m.elements[k] = Math.round(m.elements[k]);
@@ -3574,20 +3681,20 @@ img { max-width: 100%; }
     if (/failed to fetch|network/i.test(m)) return 'Could not reach the server. Check your internet connection.';
     return m;
   }
-  function localStats() {
+  function localStats(n = cube.n) {
     try {
-      const saved = JSON.parse(localStorage.getItem('deskcube') || '{}');
+      const saved = JSON.parse(localStorage.getItem(statsKey(n)) || '{}');
       return { best: saved.best || null, solves: saved.solves || 0 };
     } catch (e) { return { best: null, solves: 0 }; }
   }
-  const finished = () => acct.remote.filter(s => !s.dnf);
+  // The account window and the panel show the current size's solves (rows from before sizes count as 3×3).
+  const sizedRemote = () => acct.remote.filter(s => (s.size || 3) === cube.n);
+  const finished = () => sizedRemote().filter(s => !s.dnf);
   const remoteBest = () => finished().length ? Math.min(...finished().map(s => s.time_ms)) : null;
   // The replay, competition and DNF columns come from supabase-setup.sql; until it has been run again,
   // the page falls back to the original columns (acct.oldSchema) and those features stay off.
-  const SOLVE_COLS = 'id, time_ms, moves, scramble, solved_at, dnf, competition, daily';
-  const NO_DAILY_COLS = 'id, time_ms, moves, scramble, solved_at, dnf, competition';
-  const OLD_SOLVE_COLS = 'id, time_ms, moves, scramble, solved_at';
-  const solveCols = () => acct.oldSchema ? OLD_SOLVE_COLS : acct.noDaily ? NO_DAILY_COLS : SOLVE_COLS;
+  const solveCols = () => 'id, time_ms, moves, scramble, solved_at'
+    + (acct.oldSchema ? '' : ', dnf, competition' + (acct.noDaily ? '' : ', daily') + (acct.noSize ? '' : ', size'));
   const missingColumn = err => !!err && (err.code === '42703' || err.code === 'PGRST204' || /column .* does not exist|Could not find the .* column/i.test(err.message || ''));
 
   // Speedcubing averages: "average of n" drops the fastest and slowest of n solves in a row
@@ -3606,7 +3713,10 @@ img { max-width: 100%; }
     return best;
   }
   function renderSolves() {
-    const list = acct.remote, times = list.map(s => s.dnf ? Infinity : s.time_ms), n = list.length;
+    const list = sizedRemote(), times = list.map(s => s.dnf ? Infinity : s.time_ms), n = list.length;
+    const others = acct.remote.length - n;
+    $('acctSizeNote').hidden = !others;
+    $('acctSizeNote').textContent = `These are your ${cube.n}×${cube.n} solves. Switch the cube size to see the other ${others}.`;
     const ok = finished().map(s => s.time_ms);
     const best = remoteBest(), f = v => v === null ? '–' : v === Infinity ? 'DNF' : fmt(v);
     const mean = ok.length ? ok.reduce((a, b) => a + b, 0) / ok.length : null;
@@ -3670,7 +3780,7 @@ img { max-width: 100%; }
   const prog = { range: 'last', pts: [] };
   try { if (localStorage.getItem('deskcube-progrange') === 'all') prog.range = 'all'; } catch (e) {}
   function renderProgress() {
-    const all = acct.remote.slice().reverse();
+    const all = sizedRemote().reverse();
     const box = $('progBox');
     box.hidden = all.filter(s => !s.dnf).length < 3;
     if (box.hidden) return;
@@ -3770,11 +3880,11 @@ img { max-width: 100%; }
   async function watchSaved(s, num) {
     if (acct.oldSchema) { acctMsg('Replays need the database update first (see supabase-setup.sql).', 'bad'); return; }
     if (state.mode === 'running' || state.mode === 'inspect') { acctMsg('Finish or reset your current solve first.', 'bad'); return; }
-    const { data, error } = await acct.sb.from('solves').select('scramble, replay, time_ms').eq('id', s.id).single();
+    const { data, error } = await acct.sb.from('solves').select('scramble, replay, time_ms' + (acct.noSize ? '' : ', size')).eq('id', s.id).single();
     if (error) { acctMsg(friendly(error), 'bad'); return; }
     if (!data.replay || !data.scramble) { acctMsg('There\'s no replay for this solve. Replays are saved for solves made from now on.', 'bad'); return; }
     acctDialog.close();
-    startReplay({ scramble: data.scramble, replay: data.replay, time: data.time_ms, title: `Replay of solve ${num} (${s.dnf ? 'DNF' : fmt(data.time_ms)})` });
+    startReplay({ scramble: data.scramble, replay: data.replay, time: data.time_ms, size: data.size || 3, title: `Replay of solve ${num} (${s.dnf ? 'DNF' : fmt(data.time_ms)})` });
   }
   // First click arms the button ("Delete?"), a second click within a few seconds deletes.
   async function deleteSolve(s, btn) {
@@ -3825,16 +3935,16 @@ img { max-width: 100%; }
     $('acctSolves').hidden = !acct.loaded;
     if (acct.loaded) renderSolves();
     // Offer to bring over the best time this browser recorded before signing in.
-    const local = localStats(), key = 'deskcube-imported-' + acct.user.id;
+    const local = localStats(3), key = 'deskcube-imported-' + acct.user.id;
     let done = false;
     try { done = localStorage.getItem(key) === '1'; } catch (e) {}
-    const offer = acct.loaded && !done && local.best && (best === null || local.best < best);
+    const offer = cube.n === 3 && acct.loaded && !done && local.best && (best === null || local.best < best);
     $('acctImport').hidden = !offer;
     if (offer) $('acctImportText').textContent = `This browser has a best time of ${fmt(local.best)} from before you signed in. Add it to your account?`;
   }
 
   function currentSettings() {
-    return { mode: isSpeed() ? 'speed' : 'learn', layout: keyLayout, zoom: Math.round(view.zoom * 100) / 100, theme: themeChoice, paused: paused || null, turnSpeed, competition: comp.on, sound: { on: sound.on, vol: sound.vol }, stickers: { ...look } };
+    return { mode: isSpeed() ? 'speed' : 'learn', layout: keyLayout, zoom: Math.round(view.zoom * 100) / 100, theme: themeChoice, paused: paused || null, turnSpeed, competition: comp.on, sound: { on: sound.on, vol: sound.vol }, stickers: { ...look }, size: cube.n };
   }
   function applySettings(s) {
     acct.applying = true;
@@ -3846,6 +3956,7 @@ img { max-width: 100%; }
     if (s.sound && typeof s.sound.on === 'boolean') setSound(s.sound.on, s.sound.vol, true);
     if (s.stickers && SCHEMES[s.stickers.scheme]) setLook(s.stickers.scheme, s.stickers.letters, true);
     if (s.stickers && typeof s.stickers.faces === 'boolean') setFaces(s.stickers.faces, true);
+    if (s.size === 2 || s.size === 3 || s.size === 4) setSize(s.size, true);
     if (typeof s.competition === 'boolean' && s.competition !== comp.on && !compSolving()) setComp(s.competition);
     // A solve paused on another computer opens here, paused, unless one is already going in this browser.
     const busy = paused || state.mode === 'running' || state.mode === 'ready';
@@ -3870,7 +3981,7 @@ img { max-width: 100%; }
 
   function useAccountStats() {
     state.best = remoteBest();
-    state.solves = acct.remote.length;
+    state.solves = sizedRemote().length;
     renderPanel();
   }
   async function loadAccount() {
@@ -3881,6 +3992,7 @@ img { max-width: 100%; }
       loadSolves(),
       sb.from('profiles').select('*').eq('id', uid).maybeSingle(),
     ]);
+    if (missingColumn(solvesRes.error)) { acct.noSize = true; solvesRes = await loadSolves(); }
     if (missingColumn(solvesRes.error)) { acct.noDaily = true; solvesRes = await loadSolves(); }
     if (missingColumn(solvesRes.error)) { acct.oldSchema = true; solvesRes = await loadSolves(); }
     if (!acct.user || acct.user.id !== uid) return;
@@ -3941,6 +4053,8 @@ img { max-width: 100%; }
     const row = { time_ms: Math.max(1, Math.round(t)), moves: state.moves, scramble: state.scrambleText || null };
     if (!acct.oldSchema) Object.assign(row, { replay: extra.replay || null, competition: !!extra.competition, round_id: extra.round_id || null, dnf: !!extra.dnf });
     if (!acct.oldSchema && !acct.noDaily && extra.daily) row.daily = extra.daily;
+    if (!acct.oldSchema && !acct.noSize) row.size = cube.n;
+    else if (cube.n !== 3) { statusEl.textContent += ' Only 3×3 solves can be saved to accounts for now.'; return; }
     acct.sb.from('solves').insert(row).select(solveCols()).single().then(({ data, error }) => {
       if (error) {
         statusEl.textContent += error.code === '23505' ? ' You\'d already done today\'s challenge on another computer, so this one isn\'t saved.'
@@ -4125,7 +4239,7 @@ img { max-width: 100%; }
     renderDaily();
 
     $('acctImportBtn').addEventListener('click', async () => {
-      const local = localStats();
+      const local = localStats(3);
       if (!local.best) return;
       const row = { time_ms: Math.round(local.best) };
       const { data, error } = await acct.sb.from('solves').insert(row).select(solveCols()).single();
@@ -4176,6 +4290,9 @@ img { max-width: 100%; }
     if (!guest && !hasStoredSession() && !fromEmail) showLanding();
   }
 
+  for (const b of $('sizePick').children) b.setAttribute('aria-checked', +b.dataset.size === cube.n);
+  $('brandSub').textContent = `${cube.n}×${cube.n} practice cube`;
+  if (cube.n !== 3) setStatus(`Solved ${cube.n}×${cube.n} cube. Press Scramble to start a timed solve.`);
   buildCube();
   resize();
   placeCamera();
