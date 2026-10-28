@@ -774,6 +774,7 @@
       <p class="comp-note" id="compNote">Rounds of 5 solves, like a real competition. You get 15 seconds to look at each scramble, then the timer starts by itself (or on your first turn). No undo, hints or pausing. Your result is the average of the middle three times.</p>
       <ol class="comp-times" id="compTimes" hidden></ol>
       <p class="comp-result" id="compResult" hidden></p>
+      <button id="compExitBtn" hidden>Exit competition</button>
     </section>
 
     <section class="coach learn-only">
@@ -2545,6 +2546,8 @@
     const on = compActive(), res = comp.results;
     $('compTimes').hidden = !on;
     $('compResult').hidden = !on || res.length < 5;
+    // A round in progress (even mid-solve) can be left with Exit competition.
+    $('compExitBtn').hidden = !on || !comp.roundId || res.length >= 5;
     if (!on) return;
     // Mark the fastest and slowest as dropped once the round is complete.
     let lo = -1, hi = -1;
@@ -2575,6 +2578,19 @@
     accountSettingsChanged();
   }
   $('compBtn').addEventListener('click', () => setComp(!comp.on));
+  $('compExitBtn').addEventListener('click', () => {
+    const done = comp.results.length;
+    askConfirm({
+      title: 'Exit the competition?', ok: 'Exit competition',
+      text: (compSolving() ? 'Your current solve ends and isn\'t recorded. ' : '')
+        + `This round won't count, because only complete rounds of 5 give an average (you've done ${done} of 5). `
+        + 'Any finished solves stay in your solves list.',
+    }, () => {
+      if (compSolving()) reset();
+      setComp(false);
+      setStatus('You left the competition. Press Scramble for a normal timed solve.');
+    });
+  });
   function compScramble() {
     if (compSolving()) return;
     if (!comp.roundId || comp.results.length >= 5) { comp.roundId = newId(); comp.results = []; }
