@@ -140,6 +140,36 @@ img { max-width: 100%; }
   .pause-meta { color: var(--muted); font-size: 0.92rem; }
   .pause-note { color: var(--muted); font-size: 0.85rem; line-height: 1.5; text-wrap: balance; }
   .pause-card .primary { width: 100%; padding: 11px 14px; margin-top: 6px; }
+  .clock .time.inspect { color: var(--muted); }
+  /* Official competition (Solving mode only). */
+  :root:not([data-mode="speed"]) .solve-only { display: none !important; }
+  .comp { display: flex; flex-direction: column; gap: 8px; }
+  .comp-switch { align-self: flex-start; }
+  .comp-note { margin: 0; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+  .comp-times { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  .comp-times li {
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 4px; text-align: center;
+    font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); background: var(--bg);
+  }
+  .comp-times li.done { color: var(--fg); }
+  .comp-times li.now { border-color: var(--accent); color: var(--accent); }
+  .comp-times li.dnf { color: var(--danger); }
+  .comp-times li.dropped { opacity: 0.55; }
+  .comp-result { margin: 0; font-weight: 600; }
+  /* Replay controls over the bottom of the cube. */
+  .stage.replaying .hint { display: none; }
+  .replay-bar {
+    position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 6;
+    display: flex; flex-direction: column; gap: 6px; padding: 10px 12px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  }
+  .replay-title { font-size: 0.8rem; color: var(--muted); }
+  .replay-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .replay-row button { padding: 6px 12px; }
+  .replay-row select { font: inherit; font-size: 0.85rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 6px; }
+  .replay-track { flex: 1; min-width: 80px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .replay-fill { height: 100%; width: 0; background: var(--accent); }
+  .replay-clock { font-family: var(--font-mono); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
   .clock .time.running { color: var(--accent); }
   .clock .time.done { color: var(--good); }
   .status { color: var(--muted); font-size: 0.9rem; min-height: 1.3em; }
@@ -245,6 +275,18 @@ img { max-width: 100%; }
   .solve-del { border: 0; background: transparent; color: var(--muted); padding: 2px 8px; font-size: 1rem; cursor: pointer; border-radius: 6px; }
   .solve-del:hover { color: var(--danger); }
   .solve-del.armed { color: var(--danger); font-size: 0.8rem; font-weight: 600; border: 1px solid var(--danger); }
+  .acct-check { flex-direction: row !important; align-items: flex-start; gap: 8px !important; font-weight: 400 !important; color: var(--fg) !important; font-size: 0.88rem !important; line-height: 1.4; }
+  .acct-check input { margin-top: 2px; accent-color: var(--accent); }
+  .solve-play { border: 0; background: transparent; color: var(--accent); padding: 2px 8px; cursor: pointer; border-radius: 6px; font-size: 0.85rem; }
+  .solve-play:hover { background: var(--bg); }
+  .acct-list td.dnf { color: var(--danger); }
+  dialog.lb[open] { display: flex; flex-direction: column; gap: 12px; }
+  dialog.lb .mode-switch { display: grid; grid-template-columns: 1fr 1fr; }
+  dialog.lb .mode-switch button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
+  .lb-wrap { max-height: 360px; }
+  .lb-list td:nth-child(2) { color: var(--fg); font-family: var(--font-body); font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  .lb-list td:nth-child(3) { font-family: var(--font-mono); font-weight: 500; }
+  .lb-list .lb-times { color: var(--muted); font-family: var(--font-mono); font-size: 0.8rem; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
   /* First visit: the sign-in dialog becomes a full welcome page over a plain cubing-mat background. */
@@ -385,6 +427,9 @@ img { max-width: 100%; }
   .kp-layout { display: flex; flex-direction: column; gap: 6px; }
   .kp-layout h3 { margin: 0; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
   .kp-layout .mode-switch { display: grid; }
+  .speed-row { display: flex; align-items: center; gap: 10px; }
+  .speed-row input { flex: 1; min-width: 0; accent-color: var(--accent); }
+  .speed-end { font-size: 0.78rem; color: var(--muted); }
   .kp-layout .mode-switch button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
   .kb-map { display: flex; flex-direction: column; gap: 3px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
   .kb-row { display: grid; grid-template-columns: repeat(10, 23px); gap: 3px; }
@@ -467,7 +512,7 @@ img { max-width: 100%; }
     <div class="header-actions">
       <div class="mode-switch" role="radiogroup" aria-label="Mode">
         <button role="radio" id="modeLearn" aria-checked="true" title="Show hints, solving steps and the lesson">Learning</button>
-        <button role="radio" id="modeSpeed" aria-checked="false" title="Hide all learning help">Speedcubing</button>
+        <button role="radio" id="modeSpeed" aria-checked="false" title="Hide all learning help">Solving</button>
       </div>
       <button class="learn-btn" id="keysBtn" aria-controls="keysPanel" title="Show or hide the controls (?)">Controls</button>
       <button class="learn-btn learn-only" id="learnBtn">Learn to solve</button>
@@ -475,6 +520,7 @@ img { max-width: 100%; }
         <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
         <span>Dark</span>
       </button>
+      <button class="learn-btn" id="lbBtn" hidden>Leaderboard</button>
       <button class="learn-btn acct-btn" id="accountBtn" hidden>Sign in</button>
     </div>
   </header>
@@ -490,6 +536,15 @@ img { max-width: 100%; }
         <button role="radio" id="layoutLetters" aria-checked="true">Letters</button>
         <button role="radio" id="layoutSpeed" aria-checked="false">Speed (two hands)</button>
       </div>
+    </div>
+    <div class="kp-layout">
+      <h3><label for="turnSpeed">Turn speed</label></h3>
+      <div class="speed-row">
+        <span class="speed-end">Slow</span>
+        <input type="range" id="turnSpeed" min="0" max="10" step="1" value="3" aria-describedby="turnSpeedVal">
+        <span class="speed-end">Instant</span>
+      </div>
+      <span class="kp-note" id="turnSpeedVal"></span>
     </div>
     <p class="kp-note" id="kpNoteLetters">Press the letter of a face to turn it, and hold <kbd>Shift</kbd> to turn it the other way. Each picture shows the layer that moves (orange) and which way it goes. Letters follow your screen: <kbd>U</kbd> is always the face on top. Tap a picture to make that turn.</p>
     <p class="kp-note" id="kpNoteSpeed" hidden>Rest both hands on the home row like typing (index fingers on <kbd>F</kbd> and <kbd>J</kbd>). Every key is one turn, no Shift needed. <kbd>H</kbd> is a turn in this layout, so use the Hint button for hints.</p>
@@ -517,10 +572,10 @@ img { max-width: 100%; }
   <dialog class="confirm" id="resetDialog" aria-labelledby="resetTitle">
     <form method="dialog">
       <h3 id="resetTitle">Reset the cube?</h3>
-      <p>This puts the cube back to solved and clears your timer and moves. It can't be undone.</p>
+      <p id="confirmText">This puts the cube back to solved and clears your timer and moves. It can't be undone.</p>
       <div class="confirm-actions">
         <button value="cancel" autofocus>Cancel</button>
-        <button value="ok" class="danger">Reset</button>
+        <button value="ok" class="danger" id="confirmOk">Reset</button>
       </div>
     </form>
   </dialog>
@@ -535,6 +590,22 @@ img { max-width: 100%; }
       <button type="button" class="link" id="giveUpBtn">Give up this solve</button>
     </div>
   </div>
+  <dialog class="confirm acct wide lb" id="lbDialog" aria-labelledby="lbTitle">
+    <button type="button" class="acct-close" id="lbClose" aria-label="Close">×</button>
+    <h3 id="lbTitle">Leaderboard</h3>
+    <p class="acct-note">Only solves from Official competition mode count, so everyone had the same 15 seconds to look at the cube. Press ▶ to watch a solve.</p>
+    <div class="mode-switch" role="radiogroup" aria-label="Leaderboard type">
+      <button role="radio" id="lbSingle" aria-checked="true">Best single</button>
+      <button role="radio" id="lbAvg" aria-checked="false">Best average of 5</button>
+    </div>
+    <div class="acct-list-wrap lb-wrap">
+      <table class="acct-list lb-list">
+        <thead id="lbHead"></thead>
+        <tbody id="lbBody"></tbody>
+      </table>
+    </div>
+    <p class="acct-msg" id="lbMsg" role="status"></p>
+  </dialog>
   <div class="welcome-cover" id="welcomeCover" hidden></div>
   <dialog class="confirm acct" id="accountDialog" aria-label="Account">
     <button type="button" class="acct-close" id="acctClose" aria-label="Close">×</button>
@@ -583,7 +654,7 @@ img { max-width: 100%; }
         <p class="acct-note">Ao5 and Ao12 are your current averages of the last 5 and 12 solves, leaving out the fastest and slowest of each set.</p>
         <div class="acct-list-wrap" id="acctListWrap">
           <table class="acct-list">
-            <thead><tr><th>#</th><th>Time</th><th>Moves</th><th>When</th><th><span class="sr-only">Delete</span></th></tr></thead>
+            <thead><tr><th>#</th><th>Time</th><th>Moves</th><th>When</th><th><span class="sr-only">Replay</span></th><th><span class="sr-only">Delete</span></th></tr></thead>
             <tbody id="acctList"></tbody>
           </table>
         </div>
@@ -599,7 +670,8 @@ img { max-width: 100%; }
         <label>Display name<input name="name" id="acctName" maxlength="40" autocomplete="nickname"></label>
         <button type="submit">Save</button>
       </form>
-      <p class="acct-note">Your mode, keyboard layout, zoom and light/dark choice are saved to your account too.</p>
+      <label class="acct-check"><input type="checkbox" id="acctOnLb"> Show my competition results on the leaderboard (under my display name)</label>
+      <p class="acct-note">Your mode, keyboard layout, turn speed, zoom and light/dark choice are saved to your account too.</p>
       <div class="confirm-actions acct-split">
         <button type="button" class="link danger-link" data-go="delete">Delete my account</button>
         <button type="button" id="acctSignOut">Sign out</button>
@@ -637,6 +709,19 @@ img { max-width: 100%; }
       <button id="zoomIn" title="Zoom in (+ or scroll)" aria-label="Zoom in">+</button>
     </div>
     <div class="hint">Drag a sticker to turn that layer · drag the background to spin the cube · click a corner on the map to jump there</div>
+    <div class="replay-bar" id="replayBar" hidden>
+      <span class="replay-title" id="replayTitle">Replay</span>
+      <div class="replay-row">
+        <button id="replayPlay" class="primary">Pause</button>
+        <div class="replay-track" aria-hidden="true"><div class="replay-fill" id="replayFill"></div></div>
+        <span class="replay-clock" id="replayClock">0:00.00</span>
+        <select id="replaySpeed" aria-label="Replay speed">
+          <option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option>
+        </select>
+        <button id="replayRestart">Restart</button>
+        <button id="replayExit">Exit</button>
+      </div>
+    </div>
   </div>
 
   <aside id="rail">
@@ -675,6 +760,7 @@ img { max-width: 100%; }
       <div class="clock-row">
         <div class="time" id="time">0:00.00</div>
         <button id="pauseBtn" class="pause-btn" title="Pause the solve and hide the cube" hidden>Pause</button>
+        <button id="replayLastBtn" class="pause-btn" title="Watch this solve again" hidden>Watch replay</button>
       </div>
       <div class="status" id="status">Solved cube. Press Scramble to start a timed solve.</div>
     </section>
@@ -689,9 +775,20 @@ img { max-width: 100%; }
       <button class="primary" id="scrambleBtn">Scramble</button>
       <button id="undoBtn">Undo</button>
       <button id="resetBtn">Reset</button>
+      <button id="giveUpCompBtn" class="wide" hidden>Give up this solve (DNF)</button>
       <button id="flipBtn" class="wide" title="Turn the whole cube upside down (x2), key V">Flip upside down <kbd>V</kbd></button>
       <button id="viewBtn" title="Return to the starting camera angle">Reset view</button>
     </div>
+
+    <section class="comp solve-only" id="compBox">
+      <button class="theme-switch comp-switch" id="compBtn" role="switch" aria-checked="false">
+        <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
+        <span>Official competition</span>
+      </button>
+      <p class="comp-note" id="compNote">Rounds of 5 solves, like a real competition. You get 15 seconds to look at each scramble, then the timer starts by itself (or on your first turn). No undo, hints or pausing. Your result is the average of the middle three times.</p>
+      <ol class="comp-times" id="compTimes" hidden></ol>
+      <p class="comp-result" id="compResult" hidden></p>
+    </section>
 
     <section class="coach learn-only">
       <div class="coach-head">
@@ -950,6 +1047,11 @@ img { max-width: 100%; }
 
   // ---------- Turn queue & animation ----------
   let queue = [], anim = null;
+  // Turn speed: the slider picks how long one quarter turn takes (the last step is instant).
+  const TURN_MS = [320, 260, 210, 170, 135, 105, 80, 60, 40, 22, 0];
+  let turnSpeed = 3, turnMs = TURN_MS[3];
+  try { const v = +localStorage.getItem('deskcube-turnspeed'); if (localStorage.getItem('deskcube-turnspeed') !== null && v >= 0 && v <= 10) turnSpeed = v; } catch (e) {}
+  turnMs = TURN_MS[turnSpeed];
 
   // item: { label, axis, layer, angle, ...flags }
   function enqueue(item) { queue.push(item); }
@@ -962,8 +1064,10 @@ img { max-width: 100%; }
     pivot.updateMatrixWorld();
     const sel = cubies.filter(c => turnsPiece(item, Math.round(c.position[axis])));
     for (const c of sel) pivot.attach(c);
-    const base = item.fast ? 55 : 170;
-    const dur = reduceMotion ? 0 : base * (Math.abs(angle) > Math.PI / 2 + 0.01 ? 1.4 : 1);
+    const base = item.replay ? Math.min(turnMs, 110) / replay.speed : item.fast ? Math.min(55, turnMs) : turnMs;
+    // Keep up with fast typing (or a fast replay): the more turns are waiting, the quicker each one plays.
+    const waiting = item.user || item.replay ? queue.filter(q => q.user || q.replay).length : 0;
+    const dur = reduceMotion ? 0 : base * (Math.abs(angle) > Math.PI / 2 + 0.01 ? 1.4 : 1) / (1 + waiting);
     anim = { item, sel, axis, angle, t0: performance.now(), dur };
   }
 
@@ -993,6 +1097,12 @@ img { max-width: 100%; }
       if (p >= 1) finishAnim();
     }
     if (state.mode === 'running') renderTime(now - state.start);
+    else if (state.mode === 'inspect') {
+      const left = 15 - (now - state.inspectStart) / 1000;
+      if (left <= 0) startTimer(state.inspectStart + 15000);
+      else timeEl.textContent = String(Math.ceil(left));
+    }
+    if (replay.on) stepReplay(now);
     stepFly(now);
     pulseHighlight(now);
     renderer.render(scene, camera);
@@ -1036,9 +1146,18 @@ img { max-width: 100%; }
     renderSeq($('historySeq'), state.history.slice(-60).map(h => h.label), 'No moves yet');
     timeEl.classList.toggle('running', state.mode === 'running');
     timeEl.classList.toggle('done', state.mode === 'solved');
-    $('pauseBtn').hidden = !(state.mode === 'running' || state.mode === 'ready') || state.scrambling;
+    const compOn = compActive(), solving = state.mode === 'running' || state.mode === 'inspect';
+    $('pauseBtn').hidden = compOn || !(state.mode === 'running' || state.mode === 'ready') || state.scrambling;
+    $('replayLastBtn').hidden = !(state.mode === 'solved' && lastReplay && lastReplay.replay);
+    $('undoBtn').hidden = $('resetBtn').hidden = compOn;
+    $('giveUpCompBtn').hidden = !compOn;
+    $('giveUpCompBtn').disabled = !solving;
     $('undoBtn').disabled = !state.history.length || state.scrambling;
-    $('scrambleBtn').disabled = state.scrambling;
+    $('scrambleBtn').disabled = state.scrambling || (compOn && solving);
+    $('scrambleBtn').textContent = !compOn ? 'Scramble'
+      : !comp.results.length || comp.results.length >= 5 ? 'Start a round' : `Scramble solve ${comp.results.length + 1} of 5`;
+    timeEl.classList.toggle('inspect', state.mode === 'inspect');
+    renderComp();
   }
 
   function isSolved() {
@@ -1056,16 +1175,33 @@ img { max-width: 100%; }
   function onMoveDone(item) {
     if (item.layer === null || item.layer === 0 || item.wide) paintMaps();   // only these move the centers
     if (item.quiet) return;
+    if (item.replay) {
+      if (item.layer !== null) $('moves').textContent = ++state.moves;
+      return;
+    }
     if (item.scramble) {
       if (!queue.some(q => q.scramble)) {
         state.scrambling = false;
-        state.mode = 'ready';
-        renderTime(0);
-        setStatus('Scrambled. The timer starts on your first turn.');
+        state.rec = [];
+        if (compActive() && comp.roundId) {
+          // Inspection: 15 seconds to look; the timer starts on the first turn or when time runs out.
+          state.mode = 'inspect';
+          state.inspectStart = performance.now();
+          setStatus('Inspection: look at the cube. The timer starts on your first turn, or by itself after 15 seconds.');
+        } else {
+          state.mode = 'ready';
+          renderTime(0);
+          setStatus('Scrambled. The timer starts on your first turn.');
+        }
         renderPanel();
         renderStages();
       }
       return;
+    }
+    // Record the solve for its replay: each turn with the time it was made.
+    if (state.rec && (item.user || item.undo) && (state.mode === 'running' || state.mode === 'ready' || state.mode === 'inspect')) {
+      const t = state.mode === 'running' && item.at >= state.start ? item.at - state.start : 0;
+      state.rec.push(encodeTurn(item, t));
     }
     onHintMove(item);
     if (!queue.length) renderStages();
@@ -1088,11 +1224,7 @@ img { max-width: 100%; }
     const whole = item.layer === null;
     if (!whole) state.moves++;
     if (item.undo) state.history.pop(); else state.history.push(item);
-    if (state.mode === 'ready' && !whole) {
-      state.mode = 'running';
-      state.start = performance.now();
-      setStatus('Solving…');
-    }
+    if ((state.mode === 'ready' || state.mode === 'inspect') && !whole) startTimer(performance.now());
     if (!queue.length && state.mode === 'running' && isSolved()) {
       const t = performance.now() - state.start;
       state.mode = 'solved';
@@ -1101,21 +1233,37 @@ img { max-width: 100%; }
       const pb = !state.best || t < state.best;
       if (pb) state.best = t;
       save();
+      const replayText = (state.rec || []).join(' ');
+      lastReplay = { scramble: state.scrambleText, replay: replayText, time: t };
       setStatus(`Solved in ${fmt(t)} with ${state.moves} moves.${pb ? ' New best!' : ''}`, true);
-      accountOnSolve(t);
+      if (compActive() && comp.roundId) compSolveDone(t, false, replayText);
+      else accountOnSolve(t, { replay: replayText });
     }
     renderPanel();
   }
 
-  function userMove(m) {
-    if (state.scrambling) return;
-    enqueueLabel(m);
+  // A turn made by the player (keyboard, buttons or dragging). The timer starts the moment a layer
+  // turn is made after a scramble, not when its animation ends.
+  function playerTurn(item) {
+    if (state.scrambling || state.mode === 'replay' || state.mode === 'paused') return;
+    const now = performance.now();
+    if ((state.mode === 'ready' || state.mode === 'inspect') && item.layer !== null) startTimer(now);
+    enqueue({ ...item, user: true, at: now });
+  }
+  function userMove(m) { playerTurn({ label: m, ...decode(m, viewFrame()) }); }
+  function startTimer(now) {
+    state.mode = 'running';
+    state.start = now;
+    setStatus('Solving…');
+    renderPanel();
   }
 
   function scramble() {
     if (state.scrambling) return;
+    endReplay();
     if (anim) finishAnim();
     queue = [];
+    state.rec = null;
     // Start every scramble from white on top, green in front, seen from the corner.
     buildCube();
     placeCamera();
@@ -1140,10 +1288,11 @@ img { max-width: 100%; }
   }
 
   function reset() {
+    endReplay();
     if (anim) finishAnim();
     queue = [];
     buildCube();
-    Object.assign(state, { mode: 'idle', moves: 0, history: [], scrambling: false, scrambleText: '' });
+    Object.assign(state, { mode: 'idle', moves: 0, history: [], scrambling: false, scrambleText: '', rec: null });
     clearPaused();
     lesson.ready = false;
     renderTime(0);
@@ -1155,8 +1304,9 @@ img { max-width: 100%; }
     if (state.scrambling || !state.history.length) return;
     // Only undo what has landed; ignore while turns are still queued.
     if (anim || queue.length) return;
+    if (compActive() || state.mode === 'replay') return;
     const last = state.history[state.history.length - 1];
-    enqueue({ ...last, angle: -last.angle, undo: true });
+    enqueue({ ...last, angle: -last.angle, undo: true, user: false, at: performance.now() });
   }
 
   // ---------- Pointer: drag stickers to turn, drag background to orbit ----------
@@ -1219,7 +1369,7 @@ img { max-width: 100%; }
     drag.cubie.getWorldPosition(pos);
     const layer = Math.round(pos[best.axis]), sign = Math.sign(best.score);
     if (state.scrambling) return;
-    enqueue({ label: labelFor(best.axis, layer, sign, viewFrame()), axis: best.axis, layer, angle: sign * Math.PI / 2 });
+    playerTurn({ label: labelFor(best.axis, layer, sign, viewFrame()), axis: best.axis, layer, angle: sign * Math.PI / 2 });
   });
 
   function endDrag() { drag = null; canvas.classList.remove('turning'); }
@@ -1691,6 +1841,17 @@ img { max-width: 100%; }
     try { localStorage.setItem('deskcube-layout', l); } catch (e) {}
     accountSettingsChanged();
   }
+  const SPEED_NAMES = ['Very slow', 'Slow', 'Relaxed', 'Normal', 'Brisk', 'Quick', 'Fast', 'Very fast', 'Snappy', 'Almost instant', 'Instant'];
+  function setTurnSpeed(v, quiet) {
+    turnSpeed = Math.max(0, Math.min(10, Math.round(v)));
+    turnMs = TURN_MS[turnSpeed];
+    $('turnSpeed').value = turnSpeed;
+    $('turnSpeedVal').textContent = `${SPEED_NAMES[turnSpeed]}: ${turnMs ? turnMs + ' ms per turn' : 'no animation'}. Turns also speed up by themselves when you type faster than this.`;
+    try { localStorage.setItem('deskcube-turnspeed', turnSpeed); } catch (e) {}
+    if (!quiet) accountSettingsChanged();
+  }
+  $('turnSpeed').addEventListener('input', e => setTurnSpeed(+e.target.value));
+  setTurnSpeed(turnSpeed, true);
   $('layoutLetters').addEventListener('click', () => setLayout('letters'));
   $('layoutSpeed').addEventListener('click', () => setLayout('speed'));
   try { keyLayout = localStorage.getItem('deskcube-layout') === 'speed' ? 'speed' : 'letters'; } catch (e) {}
@@ -2170,6 +2331,8 @@ img { max-width: 100%; }
   const isSpeed = () => document.documentElement.dataset.mode === 'speed';
   function setMode(mode) {
     const speed = mode === 'speed';
+    // No switching to Learning (hints) in the middle of a competition solve.
+    if (!speed && compSolving()) return;
     if (speed) document.documentElement.dataset.mode = 'speed';
     else delete document.documentElement.dataset.mode;
     $('modeLearn').setAttribute('aria-checked', !speed);
@@ -2181,6 +2344,7 @@ img { max-width: 100%; }
       renderHint();
     }
     try { localStorage.setItem('deskcube-mode', speed ? 'speed' : 'learn'); } catch (e) {}
+    if (comp) renderPanel();
     accountSettingsChanged();
   }
   $('modeLearn').addEventListener('click', () => setMode('learn'));
@@ -2210,15 +2374,37 @@ img { max-width: 100%; }
       pad.appendChild(b);
     }
   }
-  $('scrambleBtn').addEventListener('click', scramble);
-  // Reset asks first, in the page's own dialog (browser confirm() is blocked in the viewer).
+  // "Are you sure?" questions use the page's own dialog (browser confirm() is blocked in the viewer).
   const resetDialog = $('resetDialog');
-  $('resetBtn').addEventListener('click', () => {
+  let confirmAction = null;
+  function askConfirm({ title, text, ok }, action) {
+    $('resetTitle').textContent = title;
+    $('confirmText').textContent = text;
+    $('confirmOk').textContent = ok;
+    confirmAction = action;
     resetDialog.returnValue = '';
-    if (resetDialog.showModal) resetDialog.showModal(); else reset();
-  });
+    if (resetDialog.showModal) resetDialog.showModal(); else action();
+  }
   // React to the button itself: the dialog's close event can arrive late (it waits for the next frame).
-  resetDialog.querySelector('form').addEventListener('submit', e => { if (e.submitter && e.submitter.value === 'ok') reset(); });
+  resetDialog.querySelector('form').addEventListener('submit', e => {
+    const action = confirmAction;
+    confirmAction = null;
+    if (action && e.submitter && e.submitter.value === 'ok') action();
+  });
+  const askReset = () => askConfirm({
+    title: 'Reset the cube?', ok: 'Reset',
+    text: 'This puts the cube back to solved and clears your timer and moves. It can\'t be undone.',
+  }, reset);
+  $('resetBtn').addEventListener('click', askReset);
+  $('scrambleBtn').addEventListener('click', () => {
+    if (compActive()) { compScramble(); return; }
+    if (state.mode === 'running') {
+      askConfirm({
+        title: 'Scramble again?', ok: 'Scramble',
+        text: 'You\'re in the middle of a solve. Scrambling now ends it, and the cube, timer and moves start over.',
+      }, scramble);
+    } else scramble();
+  });
   $('undoBtn').addEventListener('click', undo);
   $('flipBtn').addEventListener('click', () => userMove('x2'));
   $('viewBtn').addEventListener('click', () => flyTo(V(1, 1, 1), V(0, 1, 0)));
@@ -2262,6 +2448,179 @@ img { max-width: 100%; }
     userMove(e.shiftKey ? base + "'" : base);
   });
 
+  // ---------- Solve replays ----------
+  // A replay is the scramble plus every turn of the solve with the time it was made, as text tokens:
+  // axis, layer (+ - 0, * = whole cube), w for a wide turn, quarter turns (1, 2, 3 = one back), @ time in 1/100 s.
+  var replay = { on: false, turns: [], i: 0, speed: 1, playing: false, clock: 0, last: 0, total: 0, src: null };
+  var lastReplay = null;
+  function encodeTurn(m, t) {
+    const q = ((Math.round(m.angle / (Math.PI / 2)) % 4) + 4) % 4;
+    const layer = m.layer === null ? '*' : m.layer === 1 ? '+' : m.layer === -1 ? '-' : '0';
+    return `${m.axis}${layer}${m.wide ? 'w' : ''}${q}@${Math.round(t / 10)}`;
+  }
+  function decodeReplay(text) {
+    const out = [];
+    for (const tok of (text || '').split(' ')) {
+      const m = /^([xyz])([+\-0*])(w?)([123])@(\d+)$/.exec(tok);
+      if (!m) continue;
+      const q = +m[4];
+      out.push({ axis: m[1], layer: m[2] === '*' ? null : m[2] === '+' ? 1 : m[2] === '-' ? -1 : 0, wide: m[3] === 'w', angle: (q === 3 ? -1 : q) * Math.PI / 2, t: +m[5] * 10 });
+    }
+    return out;
+  }
+  // src: { scramble, replay, time, title }
+  function startReplay(src) {
+    const turns = decodeReplay(src.replay);
+    if (!src.scramble || !turns.length) return false;
+    if (paused) return false;
+    if (anim) finishAnim();
+    queue = [];
+    buildCube();
+    placeCamera();
+    const fr = viewFrame();
+    for (const m of src.scramble.split(' ')) if (LETTERS[m[0]]) turnNow(decode(m, fr));
+    Object.assign(state, { mode: 'replay', moves: 0, history: [], scrambling: false, rec: null });
+    lesson.ready = false;
+    showTab('practice');
+    Object.assign(replay, { on: true, turns, i: 0, playing: true, clock: 0, last: performance.now(), total: Math.max(src.time || 0, turns[turns.length - 1].t), src });
+    $('replayTitle').textContent = src.title || 'Replay';
+    $('replayPlay').textContent = 'Pause';
+    $('replayBar').hidden = false;
+    stage.classList.add('replaying');
+    renderTime(0);
+    setStatus('Watching a replay. Exit it to go back to solving.');
+    renderPanel();
+    return true;
+  }
+  function stepReplay(now) {
+    if (replay.playing) {
+      replay.clock += (now - replay.last) * replay.speed;
+      while (replay.i < replay.turns.length && replay.turns[replay.i].t <= replay.clock) {
+        const t = replay.turns[replay.i++];
+        enqueue({ axis: t.axis, layer: t.layer, angle: t.angle, wide: t.wide, replay: true });
+      }
+      if (replay.i >= replay.turns.length && replay.clock >= replay.total && !queue.length && !anim) {
+        replay.playing = false;
+        $('replayPlay').textContent = 'Play again';
+        setStatus(`Replay finished: ${fmt(replay.total)}.`, true);
+      }
+    }
+    replay.last = now;
+    const shown = Math.min(replay.clock, replay.total);
+    renderTime(shown);
+    $('replayClock').textContent = `${fmt(shown)} / ${fmt(replay.total)}`;
+    $('replayFill').style.width = (replay.total ? 100 * shown / replay.total : 100) + '%';
+  }
+  function endReplay() {
+    if (!replay.on) return;
+    replay.on = false;
+    replay.playing = false;
+    queue = queue.filter(q => !q.replay);
+    if (anim && anim.item.replay) finishAnim();
+    $('replayBar').hidden = true;
+    stage.classList.remove('replaying');
+    if (state.mode === 'replay') state.mode = 'idle';
+  }
+  $('replayPlay').addEventListener('click', () => {
+    if (!replay.playing && replay.i >= replay.turns.length) { startReplay(replay.src); return; }
+    replay.playing = !replay.playing;
+    replay.last = performance.now();
+    $('replayPlay').textContent = replay.playing ? 'Pause' : 'Play';
+  });
+  $('replayRestart').addEventListener('click', () => startReplay(replay.src));
+  $('replaySpeed').addEventListener('change', e => { replay.speed = +e.target.value || 1; });
+  $('replayExit').addEventListener('click', reset);
+  $('replayLastBtn').addEventListener('click', () => {
+    if (lastReplay) startReplay({ ...lastReplay, title: `Replay of your last solve (${fmt(lastReplay.time)})` });
+  });
+
+  // ---------- Official competition ----------
+  // Only in Solving mode. A round is 5 solves: 15 s inspection each, then the timer starts by itself
+  // (or on the first turn). No undo, hints or pausing. The result is the average of the middle three;
+  // a give-up counts as DNF (slowest), and two DNFs make the whole round DNF.
+  var comp = { on: false, roundId: null, results: [] };
+  try { comp.on = localStorage.getItem('deskcube-comp') === '1'; } catch (e) {}
+  function compActive() { return !!comp && comp.on && isSpeed(); }
+  function compSolving() { return compActive() && (state.mode === 'running' || state.mode === 'inspect'); }
+  function newId() {
+    try { return crypto.randomUUID(); } catch (e) {
+      return 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => Math.floor(Math.random() * 16).toString(16));
+    }
+  }
+  function roundAverage(results) {
+    if (results.length < 5) return null;
+    const t = results.map(r => r.dnf ? Infinity : r.time).sort((a, b) => a - b).slice(1, -1);
+    return t.includes(Infinity) ? Infinity : t.reduce((a, b) => a + b, 0) / 3;
+  }
+  const fmtResult = v => v === Infinity ? 'DNF' : v === null ? '–' : fmt(v);
+  function renderComp() {
+    $('compBtn').setAttribute('aria-checked', comp.on);
+    $('compBtn').disabled = compSolving();
+    const on = compActive(), res = comp.results;
+    $('compTimes').hidden = !on;
+    $('compResult').hidden = !on || res.length < 5;
+    if (!on) return;
+    // Mark the fastest and slowest as dropped once the round is complete.
+    let lo = -1, hi = -1;
+    if (res.length === 5) {
+      const v = res.map(r => r.dnf ? Infinity : r.time);
+      lo = v.indexOf(Math.min(...v)); hi = v.lastIndexOf(Math.max(...v));
+      if (hi === lo) hi = v.indexOf(Math.max(...v), lo + 1);
+    }
+    const box = $('compTimes');
+    box.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+      const li = document.createElement('li'), r = res[i];
+      const current = i === res.length && compSolving();
+      li.textContent = r ? (r.dnf ? 'DNF' : fmt(r.time)) : current ? 'now' : `${i + 1}`;
+      li.className = r ? 'done' + (r.dnf ? ' dnf' : '') + (i === lo || i === hi ? ' dropped' : '') : current ? 'now' : '';
+      box.appendChild(li);
+    }
+    if (res.length === 5) $('compResult').textContent = `Round average: ${fmtResult(roundAverage(res))}`;
+  }
+  function setComp(on) {
+    if (compSolving()) return;
+    comp.on = on;
+    comp.roundId = null;
+    comp.results = [];
+    try { localStorage.setItem('deskcube-comp', on ? '1' : '0'); } catch (e) {}
+    if (on && (state.mode === 'running' || state.mode === 'ready')) reset();
+    renderPanel();
+    accountSettingsChanged();
+  }
+  $('compBtn').addEventListener('click', () => setComp(!comp.on));
+  function compScramble() {
+    if (compSolving()) return;
+    if (!comp.roundId || comp.results.length >= 5) { comp.roundId = newId(); comp.results = []; }
+    scramble();
+  }
+  function compSolveDone(t, dnf, replayText) {
+    comp.results.push({ time: t, dnf });
+    const n = comp.results.length;
+    accountOnSolve(t, { replay: replayText, competition: true, round_id: comp.roundId, dnf });
+    if (n === 5) {
+      const avg = roundAverage(comp.results);
+      setStatus(`Round finished! Your average of 5 is ${fmtResult(avg)}.` + (acct && acct.user ? ' It\'s saved to your account.' : ''), avg !== Infinity);
+    } else {
+      setStatus((dnf ? 'DNF recorded.' : `Solve ${n} of 5: ${fmt(t)}.`) + ' Press Scramble for the next one.', !dnf);
+    }
+    renderPanel();
+  }
+  $('giveUpCompBtn').addEventListener('click', () => {
+    if (!compSolving()) return;
+    askConfirm({
+      title: 'Give up this solve?', ok: 'Give up',
+      text: 'It counts as DNF (did not finish) in this round. One DNF is dropped as your slowest solve; two make the round average DNF.',
+    }, () => {
+      if (!compSolving()) return;
+      const t = state.mode === 'running' ? performance.now() - state.start : 0;
+      state.mode = 'solved';
+      renderTime(t);
+      lastReplay = null;
+      compSolveDone(Math.max(1, t), true, (state.rec || []).join(' '));
+    });
+  });
+
   // ---------- Pause ----------
   // Pausing freezes the timer and covers the whole page, so the cube and the move list can't be studied
   // in the meantime. The paused solve is saved in this browser (and to the account when signed in),
@@ -2271,7 +2630,7 @@ img { max-width: 100%; }
   function snapshotSolve(prevMode, elapsed) {
     const r = n => Math.round(n * 1e4) / 1e4;
     return {
-      elapsed: Math.round(elapsed), prevMode, moves: state.moves, scramble: state.scrambleText || '',
+      elapsed: Math.round(elapsed), prevMode, moves: state.moves, scramble: state.scrambleText || '', rec: state.rec || [],
       history: state.history.slice(-500).map(h => ({ label: h.label, axis: h.axis, layer: h.layer, angle: h.angle, wide: !!h.wide })),
       cube: cubies.map(c => [c.position.x, c.position.y, c.position.z, c.quaternion.x, c.quaternion.y, c.quaternion.z, c.quaternion.w].map(r)),
       at: Date.now(),
@@ -2308,7 +2667,7 @@ img { max-width: 100%; }
     $('resumeBtn').focus();
   }
   function pauseSolve() {
-    if (paused) return;
+    if (paused || compActive()) return;
     const p = takeSnapshot();
     if (!p) return;
     paused = p;
@@ -2331,7 +2690,8 @@ img { max-width: 100%; }
       c.quaternion.setFromRotationMatrix(m);
     });
     paintMaps();
-    Object.assign(state, { moves: p.moves || 0, history: p.history || [], scrambling: false, scrambleText: p.scramble || '', mode: 'paused' });
+    endReplay();
+    Object.assign(state, { moves: p.moves || 0, history: p.history || [], scrambling: false, scrambleText: p.scramble || '', rec: p.rec || [], mode: 'paused' });
     lesson.ready = false;
     paused = p;
     try { localStorage.setItem(PAUSE_KEY, JSON.stringify(p)); } catch (e) {}
@@ -2437,15 +2797,21 @@ img { max-width: 100%; }
       return { best: saved.best || null, solves: saved.solves || 0 };
     } catch (e) { return { best: null, solves: 0 }; }
   }
-  const remoteBest = () => acct.remote.length ? Math.min(...acct.remote.map(s => s.time_ms)) : null;
-  const SOLVE_COLS = 'id, time_ms, moves, scramble, solved_at';
+  const finished = () => acct.remote.filter(s => !s.dnf);
+  const remoteBest = () => finished().length ? Math.min(...finished().map(s => s.time_ms)) : null;
+  // The replay, competition and DNF columns come from supabase-setup.sql; until it has been run again,
+  // the page falls back to the original columns (acct.oldSchema) and those features stay off.
+  const SOLVE_COLS = 'id, time_ms, moves, scramble, solved_at, dnf, competition';
+  const OLD_SOLVE_COLS = 'id, time_ms, moves, scramble, solved_at';
+  const solveCols = () => acct.oldSchema ? OLD_SOLVE_COLS : SOLVE_COLS;
+  const missingColumn = err => !!err && (err.code === '42703' || err.code === 'PGRST204' || /column .* does not exist|Could not find the .* column/i.test(err.message || ''));
 
   // Speedcubing averages: "average of n" drops the fastest and slowest of n solves in a row
-  // and takes the mean of the rest. Solves are newest first.
+  // and takes the mean of the rest. Solves are newest first; a DNF counts as slowest (Infinity).
   function aoN(times, n) {
     if (times.length < n) return null;
     const s = times.slice(0, n).sort((a, b) => a - b).slice(1, -1);
-    return s.reduce((a, b) => a + b, 0) / s.length;
+    return s.includes(Infinity) ? Infinity : s.reduce((a, b) => a + b, 0) / s.length;
   }
   function bestAoN(times, n) {
     let best = null;
@@ -2456,9 +2822,10 @@ img { max-width: 100%; }
     return best;
   }
   function renderSolves() {
-    const list = acct.remote, times = list.map(s => s.time_ms), n = list.length;
-    const best = remoteBest(), f = v => v === null ? '–' : fmt(v);
-    const mean = n ? times.reduce((a, b) => a + b, 0) / n : null;
+    const list = acct.remote, times = list.map(s => s.dnf ? Infinity : s.time_ms), n = list.length;
+    const ok = finished().map(s => s.time_ms);
+    const best = remoteBest(), f = v => v === null ? '–' : v === Infinity ? 'DNF' : fmt(v);
+    const mean = ok.length ? ok.reduce((a, b) => a + b, 0) / ok.length : null;
     const tiles = [
       ['Solves', String(n)], ['Best', f(best)], ['Average', f(mean)],
       ['Ao5', f(aoN(times, 5))], ['Ao12', f(aoN(times, 12))], ['Best Ao5', f(bestAoN(times, 5))],
@@ -2477,14 +2844,26 @@ img { max-width: 100%; }
     body.innerHTML = '';
     list.forEach((s, i) => {
       const tr = document.createElement('tr');
-      if (s.time_ms === best) tr.className = 'best';
-      if (s.scramble) tr.title = 'Scramble: ' + s.scramble;
+      if (!s.dnf && s.time_ms === best) tr.className = 'best';
+      if (s.scramble) tr.title = (s.competition ? 'Competition solve. ' : '') + 'Scramble: ' + s.scramble;
       const when = new Date(s.solved_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-      for (const text of [String(n - i), fmt(s.time_ms), s.moves === null || s.moves === undefined ? '–' : String(s.moves), when]) {
+      const timeText = (s.dnf ? 'DNF' : fmt(s.time_ms)) + (s.competition ? ' · comp' : '');
+      for (const text of [String(n - i), timeText, s.moves === null || s.moves === undefined ? '–' : String(s.moves), when]) {
         const td = document.createElement('td');
         td.textContent = text;
         tr.appendChild(td);
       }
+      if (s.dnf) tr.children[1].classList.add('dnf');
+      const playTd = document.createElement('td');
+      const play = document.createElement('button');
+      play.type = 'button';
+      play.className = 'solve-play';
+      play.textContent = '▶';
+      play.title = 'Watch the replay';
+      play.setAttribute('aria-label', `Watch solve ${n - i}`);
+      play.addEventListener('click', () => watchSaved(s, n - i));
+      playTd.appendChild(play);
+      tr.appendChild(playTd);
       const td = document.createElement('td');
       const del = document.createElement('button');
       del.type = 'button';
@@ -2498,6 +2877,16 @@ img { max-width: 100%; }
       body.appendChild(tr);
     });
     $('acctListWrap').hidden = !n;
+  }
+  // Replays are fetched only when asked for, so the list stays light.
+  async function watchSaved(s, num) {
+    if (acct.oldSchema) { acctMsg('Replays need the database update first (see supabase-setup.sql).', 'bad'); return; }
+    if (state.mode === 'running' || state.mode === 'inspect') { acctMsg('Finish or reset your current solve first.', 'bad'); return; }
+    const { data, error } = await acct.sb.from('solves').select('scramble, replay, time_ms').eq('id', s.id).single();
+    if (error) { acctMsg(friendly(error), 'bad'); return; }
+    if (!data.replay || !data.scramble) { acctMsg('There\'s no replay for this solve. Replays are saved for solves made from now on.', 'bad'); return; }
+    acctDialog.close();
+    startReplay({ scramble: data.scramble, replay: data.replay, time: data.time_ms, title: `Replay of solve ${num} (${s.dnf ? 'DNF' : fmt(data.time_ms)})` });
   }
   // First click arms the button ("Delete?"), a second click within a few seconds deletes.
   async function deleteSolve(s, btn) {
@@ -2539,6 +2928,9 @@ img { max-width: 100%; }
     if (!acct || !acct.user) return;
     $('acctEmail').textContent = acct.user.email || '';
     $('acctName').value = (acct.profile && acct.profile.display_name) || '';
+    const lbKnown = !!acct.profile && 'on_leaderboard' in acct.profile;
+    $('acctOnLb').checked = !lbKnown || acct.profile.on_leaderboard !== false;
+    $('acctOnLb').disabled = !lbKnown;
     const n = acct.remote.length, best = remoteBest();
     $('acctStats').textContent = !acct.loaded ? 'Loading your saved solves…'
       : n ? '' : 'No saved solves yet. Scramble and solve to save your first one.';
@@ -2554,7 +2946,7 @@ img { max-width: 100%; }
   }
 
   function currentSettings() {
-    return { mode: isSpeed() ? 'speed' : 'learn', layout: keyLayout, zoom: Math.round(view.zoom * 100) / 100, theme: themeChoice, paused: paused || null };
+    return { mode: isSpeed() ? 'speed' : 'learn', layout: keyLayout, zoom: Math.round(view.zoom * 100) / 100, theme: themeChoice, paused: paused || null, turnSpeed, competition: comp.on };
   }
   function applySettings(s) {
     acct.applying = true;
@@ -2562,6 +2954,8 @@ img { max-width: 100%; }
     if (s.layout === 'speed' || s.layout === 'letters') setLayout(s.layout);
     if (typeof s.zoom === 'number') setZoom(s.zoom);
     if (s.theme === 'light' || s.theme === 'dark') setTheme(s.theme);
+    if (typeof s.turnSpeed === 'number') setTurnSpeed(s.turnSpeed, true);
+    if (typeof s.competition === 'boolean' && s.competition !== comp.on && !compSolving()) setComp(s.competition);
     // A solve paused on another computer opens here, paused, unless one is already going in this browser.
     const busy = paused || state.mode === 'running' || state.mode === 'ready';
     if (s.paused && !busy) restorePaused(s.paused);
@@ -2591,10 +2985,12 @@ img { max-width: 100%; }
   async function loadAccount() {
     const sb = acct.sb, uid = acct.user.id;
     acct.loaded = false;
-    const [solvesRes, profRes] = await Promise.all([
-      sb.from('solves').select(SOLVE_COLS).order('solved_at', { ascending: false }),
-      sb.from('profiles').select('display_name, settings').eq('id', uid).maybeSingle(),
+    const loadSolves = () => sb.from('solves').select(solveCols()).order('solved_at', { ascending: false });
+    let [solvesRes, profRes] = await Promise.all([
+      loadSolves(),
+      sb.from('profiles').select('*').eq('id', uid).maybeSingle(),
     ]);
+    if (missingColumn(solvesRes.error)) { acct.oldSchema = true; solvesRes = await loadSolves(); }
     if (!acct.user || acct.user.id !== uid) return;
     if (solvesRes.error || profRes.error) {
       setStatus('Signed in, but your saved solves could not be loaded. Try reloading the page.');
@@ -2646,10 +3042,12 @@ img { max-width: 100%; }
     if (user) { acct.loaded = false; if (acctDialog.open) renderAccount(); await loadAccount(); } else signedOut();
   }
 
-  function accountOnSolve(t) {
+  // extra: { replay, competition, round_id, dnf } (left out until the database has those columns).
+  function accountOnSolve(t, extra = {}) {
     if (!acct || !acct.user) return;
     const row = { time_ms: Math.max(1, Math.round(t)), moves: state.moves, scramble: state.scrambleText || null };
-    acct.sb.from('solves').insert(row).select(SOLVE_COLS).single().then(({ data, error }) => {
+    if (!acct.oldSchema) Object.assign(row, { replay: extra.replay || null, competition: !!extra.competition, round_id: extra.round_id || null, dnf: !!extra.dnf });
+    acct.sb.from('solves').insert(row).select(solveCols()).single().then(({ data, error }) => {
       if (error) { statusEl.textContent += ' It could not be saved to your account.'; return; }
       acct.remote.unshift(data);
       statusEl.textContent += ' Saved to your account.';
@@ -2742,11 +3140,81 @@ img { max-width: 100%; }
       acctMsg('Display name saved.', 'good');
     });
 
+    $('acctOnLb').addEventListener('change', async e => {
+      const on = e.target.checked;
+      const { error } = await acct.sb.from('profiles').update({ on_leaderboard: on, updated_at: new Date().toISOString() }).eq('id', acct.user.id);
+      if (error) { e.target.checked = !on; acctMsg(friendly(error), 'bad'); return; }
+      acct.profile.on_leaderboard = on;
+      acctMsg(on ? 'Your competition results show on the leaderboard.' : 'You\'re hidden from the leaderboard.', 'good');
+    });
+
+    // Leaderboard: public, read through two database functions that return only names and results.
+    const lb = { kind: 'single' };
+    async function loadLeaderboard() {
+      const single = lb.kind === 'single';
+      $('lbSingle').setAttribute('aria-checked', single);
+      $('lbAvg').setAttribute('aria-checked', !single);
+      $('lbHead').innerHTML = single
+        ? '<tr><th>#</th><th>Name</th><th>Time</th><th>Moves</th><th>When</th><th><span class="sr-only">Replay</span></th></tr>'
+        : '<tr><th>#</th><th>Name</th><th>Average</th><th>Times</th><th>When</th></tr>';
+      const body = $('lbBody');
+      body.innerHTML = '';
+      $('lbMsg').className = 'acct-msg';
+      $('lbMsg').textContent = 'Loading…';
+      const { data, error } = await acct.sb.rpc(single ? 'leaderboard_singles' : 'leaderboard_averages', { lim: 50 });
+      if (lb.kind !== (single ? 'single' : 'avg')) return;
+      if (error) {
+        $('lbMsg').textContent = /function .* does not exist|Could not find the function/i.test(error.message || '')
+          ? 'The leaderboard needs the database update first (supabase-setup.sql).' : friendly(error);
+        $('lbMsg').className = 'acct-msg bad';
+        return;
+      }
+      $('lbMsg').textContent = data.length ? '' : 'No results yet. Finish a round in Official competition mode to be the first.';
+      data.forEach((r, i) => {
+        const tr = document.createElement('tr');
+        const when = new Date(single ? r.solved_at : r.finished_at).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+        const cells = single
+          ? [String(i + 1), r.name, fmt(r.time_ms), r.moves === null ? '–' : String(r.moves), when]
+          : [String(i + 1), r.name, fmt(r.average_ms), (r.times || []).map((t, k) => r.dnfs && r.dnfs[k] ? 'DNF' : fmt(t)).join('  '), when];
+        cells.forEach((text, k) => {
+          const td = document.createElement('td');
+          td.textContent = text;
+          if (!single && k === 3) td.className = 'lb-times';
+          tr.appendChild(td);
+        });
+        if (single) {
+          const td = document.createElement('td');
+          const play = document.createElement('button');
+          play.type = 'button';
+          play.className = 'solve-play';
+          play.textContent = '▶';
+          play.title = 'Watch this solve';
+          play.setAttribute('aria-label', `Watch ${r.name}'s solve`);
+          play.addEventListener('click', () => {
+            if (state.mode === 'running' || state.mode === 'inspect') { $('lbMsg').textContent = 'Finish or reset your current solve first.'; return; }
+            $('lbDialog').close();
+            startReplay({ scramble: r.scramble, replay: r.replay, time: r.time_ms, title: `${r.name}: ${fmt(r.time_ms)}` });
+          });
+          td.appendChild(play);
+          tr.appendChild(td);
+        }
+        body.appendChild(tr);
+      });
+    }
+    $('lbBtn').hidden = false;
+    $('lbBtn').addEventListener('click', () => {
+      if (!$('lbDialog').open) $('lbDialog').showModal();
+      loadLeaderboard();
+    });
+    $('lbClose').addEventListener('click', () => $('lbDialog').close());
+    $('lbSingle').addEventListener('click', () => { lb.kind = 'single'; loadLeaderboard(); });
+    $('lbAvg').addEventListener('click', () => { lb.kind = 'avg'; loadLeaderboard(); });
+
     $('acctImportBtn').addEventListener('click', async () => {
       const local = localStats();
       if (!local.best) return;
       const row = { time_ms: Math.round(local.best) };
-      const { data, error } = await acct.sb.from('solves').insert(row).select(SOLVE_COLS).single();
+      const { data, error } = await acct.sb.from('solves').insert(row).select(solveCols()).single();
       if (error) { acctMsg(friendly(error), 'bad'); return; }
       try { localStorage.setItem('deskcube-imported-' + acct.user.id, '1'); } catch (e) {}
       acct.remote.unshift(data);
