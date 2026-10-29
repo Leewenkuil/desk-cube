@@ -4,6 +4,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
+<title>Desk Cube – a free 3D puzzle cube, timer and lessons</title>
+<meta name="description" content="Turn a 3D puzzle cube in your browser: 2×2, 3×3 and 4×4, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.">
+<link rel="canonical" href="https://deskcube.app/">
+<meta name="theme-color" content="#f6f8f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151d23" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Desk Cube">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Desk Cube">
+<meta property="og:title" content="Desk Cube">
+<meta property="og:description" content="Turn a 3D puzzle cube in your browser: 2×2, 3×3 and 4×4, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.">
+<meta property="og:url" content="https://deskcube.app/">
+<meta property="og:image" content="https://deskcube.app/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A solved 3×3 cube beside the words Desk Cube">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Desk Cube","url":"https://deskcube.app/","description":"Turn a 3D puzzle cube in your browser: 2×2, 3×3 and 4×4, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.","applicationCategory":"GameApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"GBP"}}</script>
 <style>
 :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
@@ -12,7 +33,6 @@ img { max-width: 100%; }
 </style>
 </head>
 <body>
-<title>Desk Cube</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -379,6 +399,19 @@ img { max-width: 100%; }
 
   /* Solving steps + hints */
   .coach { display: flex; flex-direction: column; gap: 10px; }
+  /* Real cubes to buy (affiliate links) and the tip link, at the foot of the side panel. */
+  .shop-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .shop-list a {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center;
+    padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); text-decoration: none;
+  }
+  .shop-list a:hover { border-color: var(--accent); }
+  .shop-name { font-weight: 600; font-size: 0.9rem; }
+  .shop-tier { grid-row: span 2; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .shop-why { font-size: 0.8rem; color: var(--muted); }
+  .shop-note { margin: 8px 0 0; font-size: 0.75rem; color: var(--muted); }
+  .support { margin: 0; font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+  .support a { color: var(--accent); font-weight: 600; }
   .coach-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .coach-head h2 { margin: 0; }
   .coach-head button { padding: 6px 12px; display: flex; align-items: center; gap: 6px; }
@@ -648,6 +681,7 @@ img { max-width: 100%; }
         <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
         <span>Dark</span>
       </button>
+      <button class="learn-btn" id="installBtn" title="Add Desk Cube to your home screen or desktop, and play offline" hidden>Install app</button>
       <button class="learn-btn" id="lbBtn" hidden>Leaderboard</button>
       <button class="learn-btn acct-btn" id="accountBtn" hidden>Sign in</button>
     </div>
@@ -746,6 +780,15 @@ img { max-width: 100%; }
       <input class="share-link" id="shareLink" readonly aria-label="Link to the replay">
       <div class="confirm-actions">
         <button value="close" class="primary" autofocus>Done</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog class="confirm" id="installDialog" aria-labelledby="installTitle">
+    <form method="dialog">
+      <h3 id="installTitle">Install Desk Cube</h3>
+      <p>Tap the Share button <b>(the square with an arrow)</b> in Safari's toolbar, then choose <b>Add to Home Screen</b>. Desk Cube then opens full screen from its own icon, and works offline.</p>
+      <div class="confirm-actions">
+        <button value="close" class="primary" autofocus>Got it</button>
       </div>
     </form>
   </dialog>
@@ -1083,6 +1126,13 @@ img { max-width: 100%; }
       </p>
     </section>
     </div>
+
+    <section class="shop" id="shopBox" hidden>
+      <h2>Get a real cube</h2>
+      <ul class="shop-list" id="shopList"></ul>
+      <p class="shop-note">As an Amazon Associate, Desk Cube earns from qualifying purchases.</p>
+    </section>
+    <p class="support" id="supportBox" hidden>Desk Cube is free with no ads. <a id="kofiLink" target="_blank" rel="noopener">Support it with a tip ☕</a></p>
   </aside>
 </div>
 
@@ -2270,6 +2320,41 @@ img { max-width: 100%; }
     '2U': 'Inner, by U', '2D': 'Inner, by D', '2L': 'Inner, by L', '2R': 'Inner, by R', '2F': 'Inner, by F', '2B': 'Inner, by B',
     x: 'Tip, like R', y: 'Spin, like U', z: 'Roll, like F',
   };
+  // Money links. Each part stays hidden until its value is filled in.
+  // kofi: the full Ko-fi page link. amazonTag: the Associates tracking id (e.g. deskcube-21), which only
+  // earns on its own store, so amazonStore must be that store's address.
+  const SUPPORT = { kofi: '', amazonTag: '', amazonStore: 'www.amazon.co.uk' };
+  // Two picks per size: an easy first cube and a step up. Links are store searches, so they keep working
+  // when listings change.
+  const CUBE_PICKS = {
+    2: [['MoYu RS2M', 'Budget', 'Cheap, smooth and magnetic: a great first 2×2'], ['GAN 251 M', 'Step up', 'Light and fast, with adjustable magnets']],
+    3: [['MoYu RS3M V5', 'Budget', 'The usual first speed cube: magnetic and reliable'], ['GAN 14 MagLev', 'Step up', 'A top-level cube used by competitive solvers']],
+    4: [['MoYu RS4M', 'Budget', 'Stable and easy to turn for a first 4×4'], ['GAN 460 M', 'Step up', 'Smooth, magnetic and good for fast solves']],
+  };
+  function renderShop() {
+    const tag = SUPPORT.amazonTag.trim();
+    $('shopBox').hidden = !tag;
+    if (tag) {
+      $('shopList').innerHTML = '';
+      for (const [name, tier, why] of CUBE_PICKS[cube.n]) {
+        const a = document.createElement('a');
+        a.href = `https://${SUPPORT.amazonStore}/s?k=${encodeURIComponent(name + ' speed cube')}&tag=${encodeURIComponent(tag)}`;
+        a.target = '_blank';
+        a.rel = 'sponsored noopener';
+        a.innerHTML = '<span class="shop-name"></span><span class="shop-tier"></span><span class="shop-why"></span>';
+        a.children[0].textContent = name;
+        a.children[1].textContent = tier;
+        a.children[2].textContent = why;
+        const li = document.createElement('li');
+        li.appendChild(a);
+        $('shopList').appendChild(li);
+      }
+    }
+    const kofi = /^https:\/\/ko-fi\.com\/\w+\/?$/.test(SUPPORT.kofi) ? SUPPORT.kofi : '';
+    $('supportBox').hidden = !kofi;
+    if (kofi) $('kofiLink').href = kofi;
+  }
+
   // Phones: tap-to-turn buttons in the bar under the cube, one set at a time, clockwise above anticlockwise.
   const TURN_SETS = {
     2: [['Faces', 'UDLRFB'], ['Whole cube', 'xyz']],
@@ -2431,6 +2516,7 @@ img { max-width: 100%; }
   try { keyLayout = localStorage.getItem('deskcube-layout') === 'speed' ? 'speed' : 'letters'; } catch (e) {}
   renderControlRows();
   renderTurnSheet();
+  renderShop();
 
   const overlayMQ = window.matchMedia('(max-width: 1099px)');
   function setKeysOpen(open, remember) {
@@ -2594,6 +2680,7 @@ img { max-width: 100%; }
     placeFaceLabels();
     renderControlRows();
     renderTurnSheet();
+    renderShop();
     resize();
     // Records are per size.
     if (acct && acct.user) { if (acct.loaded) useAccountStats(); }
@@ -3555,6 +3642,35 @@ img { max-width: 100%; }
     const src = replay.src;
     if (src) shareReplay({ ...src, by: src.by || (src.own ? ownName() : null) }, e.currentTarget);
   });
+  // ---------- Installing as an app ----------
+  // The offline worker (sw.js) only exists on the real site, so it isn't used in the Claude preview.
+  const realSite = /^(deskcube\.app|localhost|127\.0\.0\.1)$/.test(location.hostname);
+  if (realSite && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  }
+  const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  // Android and desktop Chrome/Edge offer an install prompt; iPhones and iPads install from the Share menu.
+  const appleTouch = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let installPrompt = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    installPrompt = e;
+    $('installBtn').hidden = false;
+  });
+  window.addEventListener('appinstalled', () => { installPrompt = null; $('installBtn').hidden = true; });
+  if (realSite && appleTouch && !installed) $('installBtn').hidden = false;
+  $('installBtn').addEventListener('click', async () => {
+    if (installPrompt) {
+      const p = installPrompt;
+      installPrompt = null;
+      // A prompt can only be shown once; the browser offers a new one later if it's turned down.
+      $('installBtn').hidden = true;
+      p.prompt();
+      return;
+    }
+    if ($('installDialog').showModal) $('installDialog').showModal();
+  });
+
   // Opening a shared link: play the solve straight away.
   function openSharedReplay() {
     const m = /^#watch=([\w-]+)$/.exec(location.hash);

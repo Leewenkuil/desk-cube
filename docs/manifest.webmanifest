@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "Desk Cube",
+  "short_name": "Desk Cube",
+  "description": "A free 3D puzzle cube: 2×2, 3×3 and 4×4, beginner lessons, a speed timer and shareable replays.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f151a",
+  "theme_color": "#f6f8f9",
+  "categories": ["games", "education"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
