@@ -187,6 +187,7 @@ img { max-width: 100%; }
 
   .actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
   button {
+    touch-action: manipulation;
     font: inherit; font-weight: 600; color: var(--fg);
     background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
     padding: 10px 8px; cursor: pointer;
@@ -428,9 +429,7 @@ img { max-width: 100%; }
   .v-back { position: relative; padding: 0; height: 150px; overflow: hidden; background: var(--bg); display: block; }
   .v-back canvas { display: block; width: 100%; height: 100%; }
   .v-back .v-cap { position: absolute; left: 8px; top: 6px; }
-  @media (max-width: 780px) {
-    .viewer { transform: scale(0.72); transform-origin: top right; }
-  }
+  .v-toggle, .phone-bar, .hint-short { display: none; }
 
   /* Controls panel: docked left of the cube on wide screens, a slide-over drawer below 1100px. */
   .keys-panel {
@@ -575,11 +574,39 @@ img { max-width: 100%; }
   .lesson-nav { display: flex; justify-content: space-between; gap: 8px; }
   .lesson-nav button { flex: 1; }
 
+  /* Phones: one column. The header buttons wrap, the view map folds into a button, and a bar under
+     the cube repeats the clock, Scramble and Undo, since the side panel sits below the cube here. */
   @media (max-width: 780px) {
     html, body { height: auto; }
     .app { height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; }
     .stage, aside { grid-column: 1; grid-row: auto; }
-    .stage { height: 62vh; min-height: 320px; }
+    .stage { height: 66vh; height: 66svh; min-height: 360px; }
+    header { gap: 8px 12px; padding-block: 10px; }
+    .brand h1 { font-size: 1.2rem; }
+    .header-actions { flex-wrap: wrap; gap: 6px; }
+    .header-actions button { white-space: nowrap; }
+    .header-actions > .learn-btn { padding: 7px 11px; }
+    .keys-tab, .kb-section, aside button kbd { display: none; }
+    .zoom { top: 10px; left: max(10px, env(safe-area-inset-left, 0px)); }
+    .viewer { top: 10px; right: max(10px, env(safe-area-inset-right, 0px)); width: auto; padding: 6px 6px 6px 10px; }
+    .viewer.open { width: 196px; padding: 10px; transform: scale(0.82); transform-origin: top right; }
+    .viewer:not(.open) .v-maps, .viewer:not(.open) .v-back, .v-head .kp-keys { display: none; }
+    .v-head { gap: 10px; }
+    .v-toggle { display: block; padding: 3px 10px; font-size: 0.78rem; text-transform: none; letter-spacing: 0; }
+    .hint { bottom: 74px; font-size: 0.8rem; }
+    .hint-long { display: none; }
+    .hint-short { display: inline; }
+    .phone-bar {
+      display: flex; align-items: center; gap: 8px; position: absolute; z-index: 4; bottom: 10px;
+      left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px));
+      padding: 6px 6px 6px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    }
+    .phone-bar[hidden], .stage.replaying .phone-bar { display: none; }
+    .pb-time { margin-right: auto; font-family: var(--font-display); font-weight: 600; font-size: 1.7rem; line-height: 1; font-variant-numeric: tabular-nums; }
+    .pb-time.running { color: var(--accent); }
+    .pb-time.done { color: var(--good); }
+    .pb-time.inspect { color: var(--muted); }
+    .phone-bar button { padding: 9px 14px; }
     aside {
       border-left: 0; border-top: 1px solid var(--line); overflow: visible;
       padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -834,7 +861,7 @@ img { max-width: 100%; }
 
   <div class="stage" id="stage">
     <div class="viewer" id="viewer">
-      <div class="v-head"><span>View</span><span class="kp-keys" title="Arrow keys turn the whole cube"><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></span></div>
+      <div class="v-head"><span>View</span><span class="kp-keys" title="Arrow keys turn the whole cube"><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></span><button class="v-toggle" id="viewToggle" aria-expanded="false" aria-controls="viewer">Show</button></div>
       <div class="v-maps">
         <div class="v-map"><div class="v-sq" id="mapTop"></div><span class="v-cap">Top layer</span></div>
         <div class="v-map"><div class="v-sq" id="mapBottom"></div><span class="v-cap">Bottom layer</span></div>
@@ -846,7 +873,12 @@ img { max-width: 100%; }
       <button id="zoomLevel" title="Reset zoom (0)">100%</button>
       <button id="zoomIn" title="Zoom in (+ or scroll)" aria-label="Zoom in">+</button>
     </div>
-    <div class="hint">Drag a sticker to turn that layer · drag the background to spin the cube · click a corner on the map to jump there</div>
+    <div class="hint"><span class="hint-long">Drag a sticker to turn that layer · drag the background to spin the cube · click a corner on the map to jump there</span><span class="hint-short">Drag a sticker to turn its layer · drag the background to spin · pinch to zoom</span></div>
+    <div class="phone-bar" id="phoneBar">
+      <span class="pb-time" id="pbTime" aria-hidden="true">0:00.00</span>
+      <button id="pbUndo">Undo</button>
+      <button class="primary" id="pbScramble">Scramble</button>
+    </div>
     <div class="replay-bar" id="replayBar" hidden>
       <span class="replay-title" id="replayTitle">Replay</span>
       <div class="replay-row">
@@ -1008,7 +1040,7 @@ img { max-width: 100%; }
       <div class="seq empty" id="historySeq">No moves yet</div>
     </section>
 
-    <section>
+    <section class="kb-section">
       <h2>Keyboard</h2>
       <p class="keys">
         Every turn and its key, with pictures, is in the Controls panel. Open it with the Controls tab on the left edge or press <kbd>?</kbd>.
@@ -1081,6 +1113,7 @@ img { max-width: 100%; }
     camera.lookAt(0, 0, 0);
   }
 
+  const phoneQuery = window.matchMedia('(max-width: 780px)');
   function resize() {
     const w = stage.clientWidth, h = stage.clientHeight;
     if (!w || !h) return;
@@ -1088,9 +1121,12 @@ img { max-width: 100%; }
     camera.aspect = w / h;
     // Shift the cube left so the view navigator in the top-right corner doesn't cover it.
     const shift = w > 560 ? 105 : 0;
-    view.base = 9.5 * sizeScale() * Math.max(1, 0.95 / Math.max((w - shift * 2) / h, 0.3));
+    // Phones: keep the cube clear of the zoom row above and the clock bar and tip below.
+    const phone = phoneQuery.matches, top = phone ? 44 : 0, bottom = phone ? 112 : 0;
+    const fitH = Math.max(h - top - bottom, h * 0.4);
+    view.base = 9.5 * sizeScale() * Math.max(h / fitH, 0.95 / Math.max((w - shift * 2) / h, 0.3));
     view.r = view.base * view.zoom;
-    if (shift) camera.setViewOffset(w, h, shift, 0, w, h); else camera.clearViewOffset();
+    if (shift || phone) camera.setViewOffset(w, h, shift, (bottom - top) / 2, w, h); else camera.clearViewOffset();
     camera.updateProjectionMatrix();
     camera.position.setLength(view.r);
   }
@@ -1669,7 +1705,16 @@ img { max-width: 100%; }
     const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
     setZoom(view.zoom * Math.exp(dy * (e.ctrlKey ? 0.01 : 0.0012)));
   }, { passive: false });
+  // Fingers on the cube, so a second one turns the gesture into a pinch.
+  const touches = new Map();
   canvas.addEventListener('pointerdown', e => {
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size > 1) {
+      const [a, b] = [...touches.values()];
+      drag = touches.size === 2 ? { mode: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom: view.zoom } : { mode: 'none' };
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      return;
+    }
     const rect = canvas.getBoundingClientRect();
     ndc.set((e.clientX - rect.left) / rect.width * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
@@ -1688,6 +1733,14 @@ img { max-width: 100%; }
 
   canvas.addEventListener('pointermove', e => {
     if (!drag) return;
+    if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (drag.mode === 'none') return;
+    if (drag.mode === 'pinch') {
+      if (touches.size !== 2) return;
+      const [a, b] = [...touches.values()];
+      setZoom(drag.zoom * drag.d / Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1));
+      return;
+    }
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (drag.mode === 'orbit') {
       camFly = null;
@@ -1716,7 +1769,12 @@ img { max-width: 100%; }
     playerTurn({ label: labelFor(best.axis, layer, sign, viewFrame()), axis: best.axis, layer, angle: sign * Math.PI / 2 });
   });
 
-  function endDrag() { drag = null; canvas.classList.remove('turning'); }
+  function endDrag(e) {
+    touches.delete(e.pointerId);
+    // Lifting one finger of a pinch shouldn't turn the rest into a drag.
+    if (touches.size) { if (drag) drag = { mode: 'none' }; return; }
+    drag = null; canvas.classList.remove('turning');
+  }
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
 
@@ -3187,6 +3245,29 @@ img { max-width: 100%; }
   $('zoomIn').addEventListener('click', () => setZoom(view.zoom / 1.2));
   $('zoomOut').addEventListener('click', () => setZoom(view.zoom * 1.2));
   $('zoomLevel').addEventListener('click', () => setZoom(1));
+  // On phones the view map is folded into a button so it doesn't cover the cube.
+  $('viewToggle').addEventListener('click', () => {
+    const open = $('viewer').classList.toggle('open');
+    $('viewToggle').setAttribute('aria-expanded', open);
+    $('viewToggle').textContent = open ? 'Hide' : 'Show';
+  });
+  // Phones: the bar under the cube mirrors the clock and the Scramble and Undo buttons.
+  function syncPhoneBar() {
+    const pb = $('pbTime'), sb = $('scrambleBtn'), ub = $('undoBtn');
+    pb.textContent = timeEl.textContent;
+    for (const c of ['running', 'done', 'inspect']) pb.classList.toggle(c, timeEl.classList.contains(c));
+    $('pbScramble').textContent = sb.textContent;
+    $('pbScramble').disabled = sb.disabled;
+    $('pbUndo').hidden = ub.hidden;
+    $('pbUndo').disabled = ub.disabled;
+    $('phoneBar').hidden = $('panel-practice').hidden;
+  }
+  const phoneWatch = new MutationObserver(syncPhoneBar);
+  for (const el of [timeEl, $('scrambleBtn'), $('undoBtn')]) phoneWatch.observe(el, { attributes: true, childList: true, characterData: true, subtree: true });
+  phoneWatch.observe($('panel-practice'), { attributes: true, attributeFilter: ['hidden'] });
+  $('pbScramble').addEventListener('click', () => $('scrambleBtn').click());
+  $('pbUndo').addEventListener('click', () => $('undoBtn').click());
+  syncPhoneBar();
 
   // Keys held down as modifiers: Space (wide turns) and 2 (inner layers on the 4×4).
   const held = new Set();
