@@ -161,3 +161,76 @@ as $$
 $$;
 revoke all on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
+
+-- ===== Update 5: the Admin panel =====
+-- Accounts listed in admins see an Admin button with site-wide numbers. The page can't read or
+-- change this list; add an account to it in the SQL Editor.
+create table if not exists public.admins (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  added_at timestamptz not null default now()
+);
+alter table public.admins enable row level security;
+revoke all on public.admins from anon, authenticated;
+
+-- Tells the page whether the signed-in person is an admin (so it knows to show the button).
+create or replace function public.is_admin()
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select exists (select 1 from public.admins where user_id = auth.uid());
+$$;
+revoke all on function public.is_admin() from public;
+grant execute on function public.is_admin() to authenticated;
+
+-- Site-wide numbers for the Admin panel, for the last `days` days (UTC). Refuses anyone who isn't
+-- an admin. Returns counts and display names only, never emails or passwords.
+create or replace function public.admin_stats(days int default 30)
+returns jsonb
+language plpgsql stable security definer set search_path = ''
+as $$
+declare
+  today date := (now() at time zone 'utc')::date;
+  since date := today - (least(greatest(days, 7), 90) - 1);
+begin
+  if not exists (select 1 from public.admins where user_id = auth.uid()) then
+    raise exception 'Only admins can see this' using errcode = '42501';
+  end if;
+  return jsonb_build_object(
+    'accounts', (select count(*) from auth.users),
+    'accounts_7d', (select count(*) from auth.users where created_at >= now() - interval '7 days'),
+    'active_7d', (select count(distinct user_id) from public.solves where solved_at >= now() - interval '7 days'),
+    'solves', (select count(*) from public.solves),
+    'solves_today', (select count(*) from public.solves where solved_at >= today),
+    'solves_7d', (select count(*) from public.solves where solved_at >= now() - interval '7 days'),
+    'rounds', (select count(*) from (
+      select 1 from public.solves where competition and round_id is not null
+      group by user_id, round_id having count(*) = 5) r),
+    'on_leaderboard', (select count(*) from public.profiles where on_leaderboard),
+    'daily_today', (select count(*) from public.solves where daily = today),
+    'by_size', (select coalesce(jsonb_object_agg(size, c), '{}'::jsonb) from (
+      select size, count(*) as c from public.solves group by size) x),
+    'days', (
+      with g as (select generate_series(since, today, interval '1 day')::date as d),
+      s as (select (solved_at at time zone 'utc')::date as d, count(*) as c, count(distinct user_id) as p
+            from public.solves where solved_at >= since group by 1),
+      u as (select (created_at at time zone 'utc')::date as d, count(*) as c
+            from auth.users where created_at >= since group by 1),
+      dl as (select daily as d, count(*) as c, count(*) filter (where dnf) as x
+             from public.solves where daily >= since group by 1)
+      select jsonb_agg(jsonb_build_object('day', g.d, 'solves', coalesce(s.c, 0), 'players', coalesce(s.p, 0),
+        'signups', coalesce(u.c, 0), 'daily', coalesce(dl.c, 0), 'daily_dnf', coalesce(dl.x, 0)) order by g.d)
+      from g left join s using (d) left join u using (d) left join dl using (d)),
+    'recent', (select coalesce(jsonb_agg(r order by r.created_at desc), '[]'::jsonb) from (
+      select coalesce(nullif(p.display_name, ''), nullif(u.raw_user_meta_data->>'display_name', ''), 'No name yet') as name,
+        u.created_at, u.last_sign_in_at, u.email_confirmed_at is not null as confirmed,
+        (select count(*) from public.solves s where s.user_id = u.id) as solves
+      from auth.users u left join public.profiles p on p.id = u.id
+      order by u.created_at desc limit 10) r)
+  );
+end;
+$$;
+revoke all on function public.admin_stats(int) from public;
+grant execute on function public.admin_stats(int) to authenticated;
+
+-- To make an account an admin, run this once with that account's email in place of the example:
+-- insert into public.admins (user_id) select id from auth.users where email = 'you@example.com' on conflict do nothing;

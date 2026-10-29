@@ -289,7 +289,7 @@ img { max-width: 100%; }
   dialog.acct .acct-msg:empty { display: none; }
   dialog.acct .acct-msg.bad { color: var(--danger); }
   dialog.acct .acct-msg.good { color: var(--good); }
-  dialog.acct.wide { width: min(600px, calc(100vw - 32px)); }
+  dialog.acct.wide { box-sizing: border-box; width: min(644px, calc(100vw - 24px)); max-width: none; }
   .acct-solves { display: flex; flex-direction: column; gap: 10px; }
   .acct-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .prog { display: flex; flex-direction: column; gap: 6px; }
@@ -345,6 +345,29 @@ img { max-width: 100%; }
   .lb-list td:nth-child(2) { color: var(--fg); font-family: var(--font-body); font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
   .lb-list td:nth-child(3) { font-family: var(--font-mono); font-weight: 500; }
   .lb-list .lb-times { color: var(--muted); font-family: var(--font-mono); font-size: 0.8rem; }
+  /* Admin panel: only shown to accounts in the database's admins list. */
+  dialog.admin { box-sizing: border-box; width: min(720px, calc(100vw - 24px)); max-width: none; }
+  dialog.admin > * { flex-shrink: 0; }
+  dialog.admin .mode-switch { max-width: 300px; }
+  .admin-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+  .admin-top a { font-size: 0.85rem; color: var(--accent); font-weight: 600; text-decoration: none; }
+  .admin-top a:hover { text-decoration: underline; }
+  .admin-tiles .value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .admin-tiles .label { font-size: 0.78rem; text-transform: none; letter-spacing: 0; }
+  .admin-h { margin: 6px 0 0; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  .admin-chart { position: relative; }
+  .admin-chart svg { display: block; width: 100%; height: 130px; overflow: visible; }
+  .admin-chart .grid { stroke: var(--line); stroke-width: 1; }
+  .admin-chart .tick { fill: var(--muted); font: 11px var(--font-mono); font-variant-numeric: tabular-nums; }
+  .admin-chart .bar { fill: var(--accent); }
+  .admin-chart .bar.hover { fill: var(--fg); }
+  .admin-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .admin-cols > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .admin-list td:nth-child(2) { font-family: var(--font-body); }
+  .admin-list th, .admin-list td { padding-left: 8px; padding-right: 8px; }
+  .admin-list td:first-child { color: var(--fg); max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+  .admin-list td:last-child { font-family: var(--font-mono); }
+  .admin-foot { margin: 0; font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
   /* First visit: the sign-in dialog becomes a full welcome page over a plain cubing-mat background. */
@@ -687,6 +710,7 @@ img { max-width: 100%; }
       </button>
       <button class="learn-btn" id="installBtn" title="Add Desk Cube to your home screen or desktop, and play offline" hidden>Install app</button>
       <button class="learn-btn" id="lbBtn" hidden>Leaderboard</button>
+      <button class="learn-btn" id="adminBtn" title="Site numbers (only you can see this)" hidden>Admin</button>
       <button class="learn-btn acct-btn" id="accountBtn" hidden>Sign in</button>
     </div>
   </header>
@@ -823,6 +847,42 @@ img { max-width: 100%; }
       </table>
     </div>
     <p class="acct-msg" id="lbMsg" role="status"></p>
+  </dialog>
+  <dialog class="confirm acct wide lb admin" id="adminDialog" aria-labelledby="adminTitle">
+    <button type="button" class="acct-close" id="adminClose" aria-label="Close">×</button>
+    <h3 id="adminTitle">Admin</h3>
+    <div class="admin-top">
+      <div class="mode-switch" role="radiogroup" aria-label="Time range">
+        <button role="radio" data-days="7" aria-checked="false">7 days</button>
+        <button role="radio" data-days="30" aria-checked="true">30 days</button>
+        <button role="radio" data-days="90" aria-checked="false">90 days</button>
+      </div>
+      <a href="https://dash.cloudflare.com/?to=/:account/web-analytics" target="_blank" rel="noopener">Visitors on Cloudflare ↗</a>
+    </div>
+    <div class="stats admin-tiles" id="adminTiles"></div>
+    <p class="admin-foot" id="adminSizes"></p>
+    <h4 class="admin-h">Solves per day</h4>
+    <div class="admin-chart"><svg id="adminSolvesSvg" role="img" aria-label="Solves per day"></svg><div class="prog-tip" id="adminSolvesTip" hidden></div></div>
+    <h4 class="admin-h">New accounts per day</h4>
+    <div class="admin-chart"><svg id="adminSignupsSvg" role="img" aria-label="New accounts per day"></svg><div class="prog-tip" id="adminSignupsTip" hidden></div></div>
+    <div class="admin-cols">
+      <div>
+        <h4 class="admin-h">Daily challenge</h4>
+        <div class="acct-list-wrap"><table class="acct-list admin-list">
+          <thead><tr><th>Challenge</th><th>Day</th><th>Played</th><th>DNFs</th></tr></thead>
+          <tbody id="adminDaily"></tbody>
+        </table></div>
+      </div>
+      <div>
+        <h4 class="admin-h">Newest accounts</h4>
+        <div class="acct-list-wrap"><table class="acct-list admin-list">
+          <thead><tr><th>Name</th><th>Joined</th><th>Last in</th><th>Solves</th></tr></thead>
+          <tbody id="adminRecent"></tbody>
+        </table></div>
+      </div>
+    </div>
+    <p class="admin-foot">These numbers come from accounts, so people who play without signing in only show up in the Cloudflare visitor numbers. Days are in UTC.</p>
+    <p class="acct-msg" id="adminMsg" role="status"></p>
   </dialog>
   <div class="welcome-cover" id="welcomeCover" hidden></div>
   <dialog class="confirm acct" id="accountDialog" aria-label="Account">
@@ -4504,7 +4564,128 @@ img { max-width: 100%; }
     if (event === 'PASSWORD_RECOVERY') { renderAccountBtn(); openAccount('newpass'); if (!same && user) loadAccount(); return; }
     renderAccountBtn();
     if (same) return;
+    checkAdmin();
     if (user) { acct.loaded = false; if (acctDialog.open) renderAccount(); await loadAccount(); } else signedOut();
+  }
+
+  const admin = { days: 30, seq: 0, data: null };
+  async function checkAdmin() {
+    const id = acct.user && acct.user.id;
+    let yes = false;
+    if (id) {
+      const { data, error } = await acct.sb.rpc('is_admin');
+      yes = !error && data === true && !!acct.user && acct.user.id === id;
+    }
+    $('adminBtn').hidden = !yes;
+    if (!yes && $('adminDialog').open) $('adminDialog').close();
+  }
+  async function loadAdmin() {
+    const seq = ++admin.seq, days = admin.days;
+    $('adminDialog').querySelectorAll('[data-days]').forEach(b => b.setAttribute('aria-checked', +b.dataset.days === days));
+    $('adminMsg').className = 'acct-msg';
+    $('adminMsg').textContent = 'Loading…';
+    const { data, error } = await acct.sb.rpc('admin_stats', { days });
+    if (seq !== admin.seq) return;
+    if (error) {
+      $('adminMsg').textContent = error.code === '42501' ? 'This account isn\'t an admin.' : friendly(error);
+      $('adminMsg').className = 'acct-msg bad';
+      return;
+    }
+    $('adminMsg').textContent = '';
+    admin.data = data;
+    renderAdmin();
+  }
+  function renderAdmin() {
+    const d = admin.data, n = v => Number(v || 0).toLocaleString();
+    const sizes = d.by_size || {};
+    const tiles = [
+      ['Accounts', n(d.accounts)], ['New this week', n(d.accounts_7d)], ['People solving this week', n(d.active_7d)],
+      ['Solves', n(d.solves)], ['Solves today', n(d.solves_today)], ['Solves this week', n(d.solves_7d)],
+      ['Daily today', n(d.daily_today)], ['Competition rounds', n(d.rounds)], ['On leaderboard', n(d.on_leaderboard)],
+    ];
+    $('adminSizes').textContent = 'All solves by cube size: ' + [3, 2, 4].map(k => `${k}×${k} ${n(sizes[k])}`).join(' · ');
+    const box = $('adminTiles');
+    box.innerHTML = '';
+    for (const [label, value] of tiles) {
+      const tile = document.createElement('div');
+      tile.className = 'stat';
+      tile.innerHTML = '<span class="label"></span><span class="value"></span>';
+      tile.firstChild.textContent = label;
+      tile.lastChild.textContent = value;
+      box.appendChild(tile);
+    }
+    const days = d.days || [];
+    const dayName = day => new Date(day + 'T00:00:00Z').toLocaleDateString([], { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    adminBars('adminSolvesSvg', 'adminSolvesTip', days, 'solves',
+      p => [['Solves', p.solves], ['People solving', p.players], ['Daily challenge', p.daily]], dayName);
+    adminBars('adminSignupsSvg', 'adminSignupsTip', days, 'signups', p => [['New accounts', p.signups]], dayName);
+    // The last week of daily challenges, newest first.
+    const dailyBody = $('adminDaily');
+    dailyBody.innerHTML = '';
+    days.filter(p => dailyNumber(p.day) >= 1).slice(-7).reverse().forEach(p => {
+      const tr = document.createElement('tr');
+      for (const text of ['#' + dailyNumber(p.day), dayName(p.day), n(p.daily), n(p.daily_dnf)]) {
+        const td = document.createElement('td'); td.textContent = text; tr.appendChild(td);
+      }
+      dailyBody.appendChild(tr);
+    });
+    const recentBody = $('adminRecent');
+    recentBody.innerHTML = '';
+    const when = t => t ? new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short' }) : 'never';
+    (d.recent || []).forEach(r => {
+      const tr = document.createElement('tr');
+      const cells = [r.name + (r.confirmed ? '' : ' (unconfirmed)'), when(r.created_at), when(r.last_sign_in_at), n(r.solves)];
+      for (const text of cells) { const td = document.createElement('td'); td.textContent = text; tr.appendChild(td); }
+      recentBody.appendChild(tr);
+    });
+  }
+  // One bar per day, with a tooltip for the day under the pointer.
+  function adminBars(svgId, tipId, days, key, rows, dayName) {
+    const svg = $(svgId), tip = $(tipId);
+    const W = svg.clientWidth || 600, H = 130, L = 34, B = 18, T = 6;
+    const max = Math.max(1, ...days.map(p => p[key]));
+    // A round number for the top of the scale: 1, 2, 5, 10, 20, 50…
+    const mag = 10 ** Math.floor(Math.log10(max));
+    const top = [1, 2, 5, 10].map(m => m * mag).find(v => v >= max);
+    const y = v => T + (H - T - B) * (1 - v / top);
+    const slot = (W - L) / Math.max(days.length, 1), bw = Math.max(2, slot - 2);
+    let out = '';
+    // Counts are whole numbers, so the middle line only appears when it is one.
+    for (const v of top % 2 ? [0, top] : [0, top / 2, top]) {
+      out += `<line class="grid" x1="${L}" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/>`;
+      out += `<text class="tick" x="${L - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${v}</text>`;
+    }
+    days.forEach((p, i) => {
+      const v = p[key];
+      if (!v) return;
+      const x = L + i * slot + (slot - bw) / 2, h = Math.max(1, y(0) - y(v));
+      out += `<rect class="bar" data-i="${i}" x="${x.toFixed(1)}" y="${(y(0) - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="${Math.min(2, bw / 2)}"/>`;
+    });
+    if (days.length) {
+      out += `<text class="tick" x="${L}" y="${H - 3}">${dayName(days[0].day)}</text>`;
+      out += `<text class="tick" x="${W}" y="${H - 3}" text-anchor="end">${dayName(days[days.length - 1].day)}</text>`;
+    }
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = out;
+    const clear = () => { tip.hidden = true; svg.querySelectorAll('.bar.hover').forEach(b => b.classList.remove('hover')); };
+    svg.onpointermove = e => {
+      const r = svg.getBoundingClientRect(), i = Math.floor((e.clientX - r.left - L) / slot);
+      clear();
+      if (i < 0 || i >= days.length) return;
+      const bar = svg.querySelector(`.bar[data-i="${i}"]`);
+      if (bar) bar.classList.add('hover');
+      tip.innerHTML = '';
+      const b = document.createElement('b'); b.textContent = dayName(days[i].day); tip.appendChild(b);
+      for (const [label, value] of rows(days[i])) {
+        const line = document.createElement('div'), sp = document.createElement('span');
+        sp.textContent = label + ' '; line.append(sp, String(value)); tip.appendChild(line);
+      }
+      tip.hidden = false;
+      const x = L + (i + 0.5) * slot;
+      tip.style.left = Math.min(Math.max(0, x - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
+      tip.style.top = (-tip.offsetHeight - 4) + 'px';
+    };
+    svg.onpointerleave = clear;
   }
 
   // extra: { replay, competition, round_id, dnf, daily } (left out until the database has those columns).
@@ -4682,6 +4863,16 @@ img { max-width: 100%; }
         body.appendChild(tr);
       });
     }
+    // ---------- Admin panel ----------
+    // The button only appears for accounts in the admins table, and the numbers come from
+    // admin_stats(), which the database refuses to anyone else, so hiding the button isn't the protection.
+    $('adminBtn').addEventListener('click', () => {
+      if (!$('adminDialog').open) $('adminDialog').showModal();
+      loadAdmin();
+    });
+    $('adminClose').addEventListener('click', () => $('adminDialog').close());
+    $('adminDialog').querySelectorAll('[data-days]').forEach(b => b.addEventListener('click', () => { admin.days = +b.dataset.days; loadAdmin(); }));
+
     $('lbBtn').hidden = false;
     $('lbBtn').addEventListener('click', () => {
       if (!$('lbDialog').open) $('lbDialog').showModal();
