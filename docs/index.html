@@ -1840,7 +1840,8 @@ img { max-width: 100%; }
     if (drag.mode === 'pinch') {
       if (touches.size !== 2) return;
       const [a, b] = [...touches.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      setZoom(drag.zoom * drag.d / Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1));
+      // Zooms faster than the fingers spread, so a small pinch on a phone still goes a long way.
+      setZoom(drag.zoom * Math.pow(drag.d / Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1), 1.8));
       camFly = null;
       orbit(mx - drag.mx, my - drag.my);
       drag.mx = mx; drag.my = my;
