@@ -137,10 +137,12 @@
   .comp-note { margin: 0; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
   .comp-times { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
   .comp-times li {
-    border: 1px solid var(--line); border-radius: 8px; padding: 6px 4px; text-align: center;
-    font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 2px; text-align: center; white-space: nowrap; min-width: 0;
+    font-family: var(--font-mono); font-size: 0.8rem; font-variant-numeric: tabular-nums; color: var(--muted); background: var(--bg);
   }
   .comp-times li.done { color: var(--fg); }
+  /* A time over a minute (1:02.34) needs smaller digits to fit five in a row. */
+  .comp-times li.long { font-size: 0.68rem; letter-spacing: -0.03em; }
   .comp-times li.now { border-color: var(--accent); color: var(--accent); }
   .comp-times li.dnf { color: var(--danger); }
   .comp-times li.dropped { opacity: 0.55; }
@@ -3749,8 +3751,9 @@
     for (let i = 0; i < 5; i++) {
       const li = document.createElement('li'), r = res[i];
       const current = i === res.length && compSolving();
-      li.textContent = r ? (r.dnf ? 'DNF' : fmt(r.time)) : current ? 'now' : `${i + 1}`;
-      li.className = r ? 'done' + (r.dnf ? ' dnf' : '') + (i === lo || i === hi ? ' dropped' : '') : current ? 'now' : '';
+      // Like competition results: 12.34 under a minute, 1:02.34 above.
+      li.textContent = r ? (r.dnf ? 'DNF' : fmt(r.time).replace(/^0:0?/, '')) : current ? 'now' : `${i + 1}`;
+      li.className = r ? 'done' + (r.dnf ? ' dnf' : !r.dnf && r.time >= 60000 ? ' long' : '') + (i === lo || i === hi ? ' dropped' : '') : current ? 'now' : '';
       box.appendChild(li);
     }
     if (res.length === 5) $('compResult').textContent = `Round average: ${fmtResult(roundAverage(res))}`;
