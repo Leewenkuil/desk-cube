@@ -1484,6 +1484,8 @@
 
   const snapM = new THREE.Matrix4();
   function finishAnim() {
+    // A layer still held under a finger goes back where it was (a reset or a new scramble interrupts it).
+    if (anim.live) { anim.angle = 0; if (drag) drag.live = null; }
     pivot.rotation[anim.axis] = anim.angle;
     pivot.updateMatrixWorld();
     for (const c of anim.sel) {
@@ -1497,15 +1499,15 @@
     pivot.rotation.set(0, 0, 0);
     const item = anim.item;
     anim = null;
-    onMoveDone(item);
+    if (item) onMoveDone(item);
   }
 
   function step(now) {
     if (!anim && queue.length) startNext();
-    if (anim) {
+    if (anim && !anim.live) {
       const p = anim.dur ? Math.min(1, (now - anim.t0) / anim.dur) : 1;
-      const e = 1 - Math.pow(1 - p, 3);
-      pivot.rotation[anim.axis] = anim.angle * e;
+      const e = 1 - Math.pow(1 - p, 3), from = anim.from || 0;
+      pivot.rotation[anim.axis] = from + (anim.angle - from) * e;
       if (p >= 1) finishAnim();
     }
     if (trainer.phase === 'running') $('trTime').textContent = fmt(now - trainer.start);
@@ -1764,6 +1766,7 @@
   canvas.addEventListener('pointerdown', e => {
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (touches.size > 1) {
+      releaseLive();
       const [a, b] = [...touches.values()];
       drag = touches.size === 2 ? { mode: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom: view.zoom, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 } : { mode: 'none' };
       try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
@@ -1816,6 +1819,7 @@
       drag.x = e.clientX; drag.y = e.clientY;
       return;
     }
+    if (drag.live) { moveLive(dx, dy); return; }
     if (drag.done || Math.hypot(dx, dy) < (drag.touch ? 8 : 12)) return;
     drag.done = true;
     const len = Math.hypot(dx, dy), d = { x: dx / len, y: dy / len };
@@ -1828,17 +1832,66 @@
       const to = toScreen(drag.point.clone().addScaledVector(tangent, 0.5));
       const sx = to.x - from.x, sy = to.y - from.y, sl = Math.hypot(sx, sy) || 1;
       const score = (d.x * sx + d.y * sy) / sl;
-      if (!best || Math.abs(score) > Math.abs(best.score)) best = { axis, score };
+      if (!best || Math.abs(score) > Math.abs(best.score)) best = { axis, score, ux: sx / sl, uy: sy / sl, sl };
     }
     const pos = new THREE.Vector3();
     drag.cubie.getWorldPosition(pos);
-    const layer = snapC(pos[best.axis]), sign = Math.sign(best.score);
-    if (state.scrambling) return;
-    playerTurn({ label: labelFor(best.axis, layer, sign, viewFrame()), axis: best.axis, layer, angle: sign * Math.PI / 2 });
+    const layer = snapC(pos[best.axis]);
+    if (state.scrambling || anim || state.mode === 'replay' || state.mode === 'paused') return;
+    // From here the layer follows the finger. The sticker is r away from the turning axis, so moving it
+    // 0.5 along the cube (sl pixels on screen) is 0.5 / r of a radian.
+    const p = drag.point, r = Math.max(0.5, Math.hypot(...['x', 'y', 'z'].filter(k => k !== best.axis).map(k => p[k])));
+    pivot.rotation.set(0, 0, 0);
+    pivot.updateMatrixWorld();
+    const sel = cubies.filter(c => snapC(c.position[best.axis]) === layer);
+    for (const c of sel) pivot.attach(c);
+    anim = { live: true, item: null, sel, axis: best.axis, angle: 0 };
+    drag.live = { axis: best.axis, layer, ux: best.ux, uy: best.uy, pxPerRad: 2 * best.sl * r, at: performance.now(), v: 0, last: null };
+    moveLive(dx, dy);
   });
+
+  function moveLive(dx, dy) {
+    const L = drag.live;
+    if (!anim || !anim.live) return;
+    const along = dx * L.ux + dy * L.uy, now = performance.now();
+    // How fast the finger is moving at the end, so a quick flick turns even when it's short.
+    if (L.last && now > L.last.t) {
+      const raw = (along - L.last.along) / (now - L.last.t);
+      L.v = L.moved ? 0.5 * L.v + 0.5 * raw : raw;
+      L.moved = true;
+    }
+    L.last = { t: now, along };
+    anim.angle = Math.max(-Math.PI * 1.1, Math.min(Math.PI * 1.1, along / L.pxPerRad));
+    pivot.rotation[anim.axis] = anim.angle;
+  }
+
+  // Letting go: the layer finishes the nearest quarter (or half) turn, or springs back if it hardly moved.
+  // A fifth of a quarter turn, or a quick swipe, is enough to turn.
+  function releaseLive() {
+    const L = drag && drag.live;
+    drag && (drag.live = null);
+    if (!L || !anim || !anim.live) return;
+    const Q = Math.PI / 2, a = anim.angle;
+    // A flick that stopped moving a while ago doesn't count as one.
+    const v = L.last && performance.now() - L.last.t < 80 ? L.v : 0;
+    let q = Math.round(a / Q);
+    if (!q && a && (Math.abs(a) > Q * 0.18 || (Math.abs(v) > 0.2 && Math.sign(v) === Math.sign(a)))) q = Math.sign(a);
+    q = Math.max(-2, Math.min(2, q));
+    let item = null;
+    if (q && !state.scrambling && state.mode !== 'replay' && state.mode !== 'paused') {
+      const quarter = labelFor(L.axis, L.layer, Math.sign(q), viewFrame());
+      item = { label: Math.abs(q) === 2 ? quarter.replace("'", '') + '2' : quarter, axis: L.axis, layer: L.layer, angle: q * Q, user: true, at: L.at };
+      if (state.mode === 'ready' || state.mode === 'inspect') startTimer(L.at);
+      playClick(false);
+    }
+    const target = item ? q * Q : 0;
+    const dur = reduceMotion ? 0 : turnMs * Math.min(1.4, Math.abs(target - a) / Q);
+    anim = { item, sel: anim.sel, axis: L.axis, angle: target, from: a, t0: performance.now(), dur };
+  }
 
   function endDrag(e) {
     touches.delete(e.pointerId);
+    releaseLive();
     // Lifting one finger of a pinch shouldn't turn the rest into a drag.
     if (touches.size) { if (drag) drag = { mode: 'none' }; return; }
     drag = null; canvas.classList.remove('turning');
@@ -3550,7 +3603,7 @@
     replay.on = false;
     replay.playing = false;
     queue = queue.filter(q => !q.replay);
-    if (anim && anim.item.replay) finishAnim();
+    if (anim && anim.item && anim.item.replay) finishAnim();
     $('replayBar').hidden = true;
     stage.classList.remove('replaying');
     if (state.mode === 'replay') state.mode = 'idle';
