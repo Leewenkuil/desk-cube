@@ -108,7 +108,10 @@
     font-family: var(--font-display); font-weight: 600; font-size: 3.2rem; line-height: 1;
     font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
   }
-  .clock-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .clock-row { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+  .clock-btns { display: flex; gap: 6px; }
+  .clock-btns:not(:has(button:not([hidden]))) { display: none; }
+  .share-link { width: 100%; font: inherit; font-family: var(--font-mono); font-size: 0.8rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
   .pause-btn { padding: 8px 16px; flex: none; }
   .pause-cover {
     position: fixed; inset: 0; z-index: 45; display: grid; place-items: center;
@@ -722,6 +725,16 @@
       </div>
     </form>
   </dialog>
+  <dialog class="confirm" id="shareDialog" aria-labelledby="shareTitle">
+    <form method="dialog">
+      <h3 id="shareTitle">Share this solve</h3>
+      <p>Anyone who opens this link watches the solve play back. Copy it and send it on.</p>
+      <input class="share-link" id="shareLink" readonly aria-label="Link to the replay">
+      <div class="confirm-actions">
+        <button value="close" class="primary" autofocus>Done</button>
+      </div>
+    </form>
+  </dialog>
   <div class="pause-cover" id="pauseCover" role="dialog" aria-modal="true" aria-labelledby="pausedTitle" hidden>
     <div class="pause-card">
       <span class="label">Desk Cube</span>
@@ -893,6 +906,7 @@
         <select id="replaySpeed" aria-label="Replay speed">
           <option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option>
         </select>
+        <button id="replayShare" title="Get a link anyone can open to watch this solve">Share</button>
         <button id="replayRestart">Restart</button>
         <button id="replayExit">Exit</button>
       </div>
@@ -971,8 +985,11 @@
     <section class="clock">
       <div class="clock-row">
         <div class="time" id="time">0:00.00</div>
-        <button id="pauseBtn" class="pause-btn" title="Pause the solve and hide the cube" hidden>Pause</button>
-        <button id="replayLastBtn" class="pause-btn" title="Watch this solve again" hidden>Watch replay</button>
+        <div class="clock-btns">
+          <button id="pauseBtn" class="pause-btn" title="Pause the solve and hide the cube" hidden>Pause</button>
+          <button id="replayLastBtn" class="pause-btn" title="Watch this solve again" hidden>Watch replay</button>
+          <button id="shareLastBtn" class="pause-btn" title="Get a link anyone can open to watch this solve" hidden>Share</button>
+        </div>
       </div>
       <div class="status" id="status">Solved cube. Press Scramble to start a timed solve.</div>
     </section>
@@ -1519,7 +1536,7 @@
     timeEl.classList.toggle('done', state.mode === 'solved');
     const compOn = strictRules(), solving = state.mode === 'running' || state.mode === 'inspect';
     $('pauseBtn').hidden = compOn || state.mode !== 'running';
-    $('replayLastBtn').hidden = !(state.mode === 'solved' && lastReplay && lastReplay.replay);
+    $('replayLastBtn').hidden = $('shareLastBtn').hidden = !(state.mode === 'solved' && lastReplay && lastReplay.replay);
     $('undoBtn').hidden = $('resetBtn').hidden = compOn;
     $('giveUpCompBtn').hidden = !compOn;
     $('giveUpCompBtn').disabled = !solving;
@@ -3481,8 +3498,66 @@
   $('replaySpeed').addEventListener('change', e => { replay.speed = +e.target.value || 1; });
   $('replayExit').addEventListener('click', reset);
   $('replayLastBtn').addEventListener('click', () => {
-    if (lastReplay) startReplay({ ...lastReplay, title: `Replay of your last solve (${fmt(lastReplay.time)})` });
+    if (lastReplay) startReplay({ ...lastReplay, own: true, title: `Replay of your last solve (${fmt(lastReplay.time)})` });
   });
+
+  // ---------- Sharing replays ----------
+  // A shared replay is a link to the site with the whole solve in the address (#watch=…), so nothing is
+  // stored anywhere. The data is JSON in URL-safe base64: size, time, scramble, turns and, if known, a name.
+  const b64u = text => btoa(String.fromCharCode(...new TextEncoder().encode(text))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const unb64u = text => new TextDecoder().decode(Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)));
+  // Only a name the person chose for the leaderboard, never one made from their email.
+  const ownName = () => (acct && acct.user && acct.profile && acct.profile.display_name) || null;
+  function replayLink(src) {
+    const data = { v: 1, n: src.size || 3, t: Math.round(src.time || 0), s: src.scramble, r: src.replay };
+    if (src.by) data.by = src.by;
+    return 'https://deskcube.app/#watch=' + b64u(JSON.stringify(data));
+  }
+  async function shareReplay(src, btn) {
+    const n = src.size || 3, url = replayLink(src);
+    const text = `Watch this ${n}×${n} solve in ${fmt(src.time || 0)} on Desk Cube`;
+    // Phones get the system share sheet; elsewhere the link is copied.
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+      try { await navigator.share({ title: 'Desk Cube replay', text, url }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      const old = btn.textContent;
+      btn.textContent = 'Link copied';
+      setTimeout(() => { btn.textContent = old; }, 2000);
+      return;
+    } catch (e) {}
+    // No clipboard (blocked in some views): show the link to copy by hand.
+    $('shareLink').value = url;
+    if ($('shareDialog').showModal) $('shareDialog').showModal();
+    $('shareLink').select();
+  }
+  $('shareLink').addEventListener('focus', e => e.target.select());
+  $('shareLastBtn').addEventListener('click', e => {
+    if (lastReplay) shareReplay({ ...lastReplay, by: ownName() }, e.currentTarget);
+  });
+  $('replayShare').addEventListener('click', e => {
+    const src = replay.src;
+    if (src) shareReplay({ ...src, by: src.by || (src.own ? ownName() : null) }, e.currentTarget);
+  });
+  // Opening a shared link: play the solve straight away.
+  function openSharedReplay() {
+    const m = /^#watch=([\w-]+)$/.exec(location.hash);
+    if (!m) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    let d = null;
+    try { d = JSON.parse(unb64u(m[1])); } catch (e) {}
+    const ok = d && [2, 3, 4].includes(d.n) && typeof d.s === 'string' && typeof d.r === 'string' && d.t >= 0;
+    if (!ok) { setStatus('That replay link is damaged, so it can\'t be played. Ask for the link again.'); return; }
+    const by = typeof d.by === 'string' ? d.by.slice(0, 40) : '';
+    const title = `${by ? by + '\'s' : 'A shared'} ${d.n}×${d.n} solve: ${fmt(d.t)}`;
+    if (!startReplay({ scramble: d.s, replay: d.r, time: d.t, size: d.n, by: by || null, title })) {
+      setStatus(paused ? 'Finish or give up your paused solve first, then open the replay link again.' : 'That replay couldn\'t be played.');
+      return;
+    }
+    setStatus('Watching a shared replay. Exit it to try the cube yourself.');
+  }
 
   // ---------- Official competition ----------
   // Only in Solving mode. A round is 5 solves: 15 s inspection each, then the timer starts by itself
@@ -4080,7 +4155,7 @@
     if (error) { acctMsg(friendly(error), 'bad'); return; }
     if (!data.replay || !data.scramble) { acctMsg('There\'s no replay for this solve. Replays are saved for solves made from now on.', 'bad'); return; }
     acctDialog.close();
-    startReplay({ scramble: data.scramble, replay: data.replay, time: data.time_ms, size: data.size || 3, title: `Replay of solve ${num} (${s.dnf ? 'DNF' : fmt(data.time_ms)})` });
+    startReplay({ scramble: data.scramble, replay: data.replay, time: data.time_ms, size: data.size || 3, own: true, title: `Replay of solve ${num} (${s.dnf ? 'DNF' : fmt(data.time_ms)})` });
   }
   // First click arms the button ("Delete?"), a second click within a few seconds deletes.
   async function deleteSolve(s, btn) {
@@ -4411,7 +4486,7 @@
           play.addEventListener('click', () => {
             if (state.mode === 'running' || state.mode === 'inspect') { $('lbMsg').textContent = 'Finish or reset your current solve first.'; return; }
             $('lbDialog').close();
-            startReplay({ scramble: r.scramble, replay: r.replay, time: r.time_ms, title: `${r.name}: ${r.dnf ? 'DNF' : fmt(r.time_ms)}` });
+            startReplay({ scramble: r.scramble, replay: r.replay, time: r.time_ms, size: 3, by: r.name, title: `${r.name}: ${r.dnf ? 'DNF' : fmt(r.time_ms)}` });
           });
           td.appendChild(play);
         }
@@ -4483,7 +4558,8 @@
     try { guest = localStorage.getItem(GUEST_KEY) === '1'; } catch (e) {}
     // Links from confirmation and reset emails carry the session in the address, so skip the welcome page for those.
     const fromEmail = /access_token|type=recovery|[?&]code=/.test(location.hash + location.search);
-    if (!guest && !hasStoredSession() && !fromEmail) showLanding();
+    const sharedLink = /^#watch=/.test(location.hash);
+    if (!guest && !hasStoredSession() && !fromEmail && !sharedLink) showLanding();
   }
 
   for (const b of $('sizePick').children) b.setAttribute('aria-checked', +b.dataset.size === cube.n);
@@ -4496,6 +4572,7 @@
   loadPaused();
   renderPanel();
   renderStages();
+  openSharedReplay();
   requestAnimationFrame(step);
 })();
 </script>
