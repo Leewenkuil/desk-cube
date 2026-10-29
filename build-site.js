@@ -44,6 +44,8 @@ const head = `<!doctype html>
   description: DESC, applicationCategory: 'GameApplication', operatingSystem: 'Any',
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'GBP' },
 })}</script>
+<!-- Cloudflare Web Analytics: visitor counts without cookies. Only the real site has it, so the Claude preview isn't counted. -->
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "1db7e9df27f34d1e9a63cfbecb6bc0c8"}'></script>
 <style>
 :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
