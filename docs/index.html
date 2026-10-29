@@ -594,19 +594,31 @@ img { max-width: 100%; }
     .v-head { gap: 10px; }
     .v-toggle { display: block; padding: 3px 10px; font-size: 0.78rem; text-transform: none; letter-spacing: 0; }
     .hint { bottom: 74px; font-size: 0.8rem; }
+    .stage.turns-open { height: 100vh; height: 100svh; }
+    .stage.turns-open .hint { display: none; }
     .hint-long { display: none; }
     .hint-short { display: inline; }
     .phone-bar {
-      display: flex; align-items: center; gap: 8px; position: absolute; z-index: 4; bottom: 10px;
+      display: flex; flex-direction: column; gap: 8px; position: absolute; z-index: 4; bottom: 10px;
       left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px));
       padding: 6px 6px 6px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
     }
     .phone-bar[hidden], .stage.replaying .phone-bar { display: none; }
-    .pb-time { margin-right: auto; font-family: var(--font-display); font-weight: 600; font-size: 1.7rem; line-height: 1; font-variant-numeric: tabular-nums; }
+    .pb-row { display: flex; align-items: center; gap: 6px; }
+    .pb-time { margin-right: auto; min-width: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; line-height: 1; font-variant-numeric: tabular-nums; }
     .pb-time.running { color: var(--accent); }
     .pb-time.done { color: var(--good); }
     .pb-time.inspect { color: var(--muted); }
-    .phone-bar button { padding: 9px 14px; }
+    .pb-row button { padding: 9px 11px; white-space: nowrap; }
+    #pbTurns[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+    .turn-sheet { display: flex; flex-direction: column; gap: 6px; padding: 2px 8px 8px 0; border-bottom: 1px solid var(--line); }
+    .turn-sheet[hidden] { display: none; }
+    .ts-sets { display: flex; gap: 4px; }
+    .ts-sets button { flex: 1; padding: 5px 4px; font-size: 0.78rem; border: 0; background: transparent; color: var(--muted); }
+    .ts-sets button[aria-selected="true"] { background: var(--bg); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
+    .ts-grid { display: grid; grid-template-columns: repeat(var(--cols, 6), minmax(0, 1fr)); gap: 5px; }
+    .ts-grid button { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 0 5px; font-family: var(--font-mono); font-weight: 600; font-size: 0.85rem; }
+    .ts-grid .kp-icon { width: 30px; height: 31px; }
     aside {
       border-left: 0; border-top: 1px solid var(--line); overflow: visible;
       padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -873,11 +885,18 @@ img { max-width: 100%; }
       <button id="zoomLevel" title="Reset zoom (0)">100%</button>
       <button id="zoomIn" title="Zoom in (+ or scroll)" aria-label="Zoom in">+</button>
     </div>
-    <div class="hint"><span class="hint-long">Drag a sticker to turn that layer · drag the background to spin the cube · click a corner on the map to jump there</span><span class="hint-short">Drag a sticker to turn its layer · drag the background to spin · pinch to zoom</span></div>
+    <div class="hint"><span class="hint-long">Drag a sticker to turn that layer · drag the background to spin the cube · click a corner on the map to jump there</span><span class="hint-short">Drag a sticker to turn its layer · two fingers to spin or zoom · or tap Turns</span></div>
     <div class="phone-bar" id="phoneBar">
-      <span class="pb-time" id="pbTime" aria-hidden="true">0:00.00</span>
-      <button id="pbUndo">Undo</button>
-      <button class="primary" id="pbScramble">Scramble</button>
+      <div class="turn-sheet" id="turnSheet" hidden>
+        <div class="ts-sets" id="turnSets" role="tablist" aria-label="Kind of turn"></div>
+        <div class="ts-grid" id="turnGrid"></div>
+      </div>
+      <div class="pb-row">
+        <span class="pb-time" id="pbTime" aria-hidden="true">0:00.00</span>
+        <button id="pbTurns" aria-expanded="false" aria-controls="turnSheet">Turns</button>
+        <button id="pbUndo">Undo</button>
+        <button class="primary" id="pbScramble">Scramble</button>
+      </div>
     </div>
     <div class="replay-bar" id="replayBar" hidden>
       <span class="replay-title" id="replayTitle">Replay</span>
@@ -1122,7 +1141,9 @@ img { max-width: 100%; }
     // Shift the cube left so the view navigator in the top-right corner doesn't cover it.
     const shift = w > 560 ? 105 : 0;
     // Phones: keep the cube clear of the zoom row above and the clock bar and tip below.
-    const phone = phoneQuery.matches, top = phone ? 44 : 0, bottom = phone ? 112 : 0;
+    const bar = document.getElementById('phoneBar'), open = stage.classList.contains('turns-open');
+    const phone = phoneQuery.matches, top = phone ? 44 : 0;
+    const bottom = !phone ? 0 : (bar.offsetParent ? h - bar.offsetTop : 0) + (open ? 8 : 48);
     const fitH = Math.max(h - top - bottom, h * 0.4);
     view.base = 9.5 * sizeScale() * Math.max(h / fitH, 0.95 / Math.max((w - shift * 2) / h, 0.3));
     view.r = view.base * view.zoom;
@@ -1711,23 +1732,34 @@ img { max-width: 100%; }
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (touches.size > 1) {
       const [a, b] = [...touches.values()];
-      drag = touches.size === 2 ? { mode: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom: view.zoom } : { mode: 'none' };
+      drag = touches.size === 2 ? { mode: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom: view.zoom, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 } : { mode: 'none' };
       try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
       return;
     }
     const rect = canvas.getBoundingClientRect();
-    ndc.set((e.clientX - rect.left) / rect.width * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
-    ray.setFromCamera(ndc, camera);
-    const hit = !anim && !state.scrambling ? ray.intersectObjects(bodies)[0] : null;
+    const touch = e.pointerType === 'touch' || e.pointerType === 'pen';
+    const castAt = (x, y) => {
+      ndc.set((x - rect.left) / rect.width * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      return ray.intersectObjects(bodies)[0] || null;
+    };
+    let hit = null;
+    if (!anim && !state.scrambling) {
+      hit = castAt(e.clientX, e.clientY);
+      // A fingertip is wide: one that lands just off the edge of the cube takes the nearest piece.
+      for (let r = 10; touch && !hit && r <= 30; r += 10)
+        for (let i = 0; i < 8 && !hit; i++) hit = castAt(e.clientX + r * Math.cos(i * Math.PI / 4), e.clientY + r * Math.sin(i * Math.PI / 4));
+    }
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
     canvas.classList.add('turning');
     if (hit) {
       const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
       const ax = ['x', 'y', 'z'].reduce((a, b) => Math.abs(n[a]) >= Math.abs(n[b]) ? a : b);
       const normal = new THREE.Vector3(); normal[ax] = Math.sign(n[ax]);
-      drag = { mode: 'turn', x: e.clientX, y: e.clientY, point: hit.point.clone(), normal, normalAxis: ax, cubie: hit.object.parent, done: false };
+      drag = { mode: 'turn', touch, x: e.clientX, y: e.clientY, point: hit.point.clone(), normal, normalAxis: ax, cubie: hit.object.parent, done: false };
     } else {
-      drag = { mode: 'orbit', x: e.clientX, y: e.clientY };
+      // On touch screens one finger only ever turns; spinning the cube takes two fingers.
+      drag = touch ? { mode: 'none' } : { mode: 'orbit', x: e.clientX, y: e.clientY };
     }
   });
 
@@ -1737,8 +1769,11 @@ img { max-width: 100%; }
     if (drag.mode === 'none') return;
     if (drag.mode === 'pinch') {
       if (touches.size !== 2) return;
-      const [a, b] = [...touches.values()];
+      const [a, b] = [...touches.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       setZoom(drag.zoom * drag.d / Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1));
+      camFly = null;
+      orbit(mx - drag.mx, my - drag.my);
+      drag.mx = mx; drag.my = my;
       return;
     }
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
@@ -1748,7 +1783,7 @@ img { max-width: 100%; }
       drag.x = e.clientX; drag.y = e.clientY;
       return;
     }
-    if (drag.done || Math.hypot(dx, dy) < 12) return;
+    if (drag.done || Math.hypot(dx, dy) < (drag.touch ? 8 : 12)) return;
     drag.done = true;
     const len = Math.hypot(dx, dy), d = { x: dx / len, y: dy / len };
     const from = toScreen(drag.point);
@@ -2218,6 +2253,31 @@ img { max-width: 100%; }
     '2U': 'Inner, by U', '2D': 'Inner, by D', '2L': 'Inner, by L', '2R': 'Inner, by R', '2F': 'Inner, by F', '2B': 'Inner, by B',
     x: 'Tip, like R', y: 'Spin, like U', z: 'Roll, like F',
   };
+  // Phones: tap-to-turn buttons in the bar under the cube, one set at a time, clockwise above anticlockwise.
+  const TURN_SETS = {
+    2: [['Faces', 'UDLRFB'], ['Whole cube', 'xyz']],
+    3: [['Faces', 'UDLRFB'], ['Middle', 'MES'], ['Whole cube', 'xyz']],
+    4: [['Faces', 'UDLRFB'], ['Wide', 'udlrfb'], ['Inner', ['2U', '2D', '2L', '2R', '2F', '2B']], ['Whole cube', 'xyz']],
+  };
+  let turnSet = 0;
+  function renderTurnSheet() {
+    const sets = TURN_SETS[cube.n];
+    if (turnSet >= sets.length) turnSet = 0;
+    $('turnSets').innerHTML = sets.map(([name], i) => `<button role="tab" aria-selected="${i === turnSet}" data-set="${i}">${name}</button>`).join('');
+    const moves = [...sets[turnSet][1]];
+    $('turnGrid').style.setProperty('--cols', moves.length);
+    $('turnGrid').innerHTML = [...moves, ...moves.map(m => m + "'")]
+      .map(m => `<button data-move="${m}" title="${m}">${moveIcon(m, cube.n)}<span>${m}</span></button>`).join('');
+  }
+  $('turnSets').addEventListener('click', e => {
+    const b = e.target.closest('[data-set]');
+    if (b) { turnSet = +b.dataset.set; renderTurnSheet(); }
+  });
+  $('turnGrid').addEventListener('click', e => {
+    const b = e.target.closest('[data-move]');
+    if (b) userMove(b.dataset.move);
+  });
+
   // Rebuilt when the cube size changes: the pictures show that size, and only its turns are listed.
   function renderControlRows() {
     for (const id of ['kpFaces', 'kpSlices', 'kpWide', 'kpInner', 'kpWhole']) $(id).innerHTML = '';
@@ -2353,6 +2413,7 @@ img { max-width: 100%; }
   $('layoutSpeed').addEventListener('click', () => setLayout('speed'));
   try { keyLayout = localStorage.getItem('deskcube-layout') === 'speed' ? 'speed' : 'letters'; } catch (e) {}
   renderControlRows();
+  renderTurnSheet();
 
   const overlayMQ = window.matchMedia('(max-width: 1099px)');
   function setKeysOpen(open, remember) {
@@ -2515,6 +2576,7 @@ img { max-width: 100%; }
     if (n !== 3) showTab('practice');
     placeFaceLabels();
     renderControlRows();
+    renderTurnSheet();
     resize();
     // Records are per size.
     if (acct && acct.user) { if (acct.loaded) useAccountStats(); }
@@ -3256,12 +3318,26 @@ img { max-width: 100%; }
     const pb = $('pbTime'), sb = $('scrambleBtn'), ub = $('undoBtn');
     pb.textContent = timeEl.textContent;
     for (const c of ['running', 'done', 'inspect']) pb.classList.toggle(c, timeEl.classList.contains(c));
-    $('pbScramble').textContent = sb.textContent;
+    // Competition labels are long; the bar has room for a word.
+    $('pbScramble').textContent = sb.textContent.startsWith('Scramble solve') ? 'Next solve' : sb.textContent === 'Start a round' ? 'Start' : sb.textContent;
     $('pbScramble').disabled = sb.disabled;
     $('pbUndo').hidden = ub.hidden;
     $('pbUndo').disabled = ub.disabled;
-    $('phoneBar').hidden = $('panel-practice').hidden;
+    const hide = $('panel-practice').hidden;
+    if (hide !== $('phoneBar').hidden) {
+      $('phoneBar').hidden = hide;
+      if (hide) setTurnsOpen(false); else resize();
+    }
   }
+  function setTurnsOpen(open) {
+    $('turnSheet').hidden = !open;
+    $('pbTurns').setAttribute('aria-expanded', open);
+    stage.classList.toggle('turns-open', open);
+    // Open, the cube takes the whole screen so the buttons and the cube are both in reach.
+    if (open) stage.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
+    resize();
+  }
+  $('pbTurns').addEventListener('click', () => setTurnsOpen($('turnSheet').hidden));
   const phoneWatch = new MutationObserver(syncPhoneBar);
   for (const el of [timeEl, $('scrambleBtn'), $('undoBtn')]) phoneWatch.observe(el, { attributes: true, childList: true, characterData: true, subtree: true });
   phoneWatch.observe($('panel-practice'), { attributes: true, attributeFilter: ['hidden'] });
