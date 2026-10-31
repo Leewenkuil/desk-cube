@@ -377,9 +377,10 @@
 
   /* Learning / Speedcubing mode: speed mode hides every .learn-only element. */
   :root[data-mode="speed"] .learn-only { display: none !important; }
-  /* Cube size: lessons, hints, the trainer, the daily challenge and competitions are 3×3 only. */
+  /* Cube size: the trainer, the daily challenge and competitions are 3×3 only; hints are 2×2 and 3×3. */
   :root[data-size="2"] .three-only, :root[data-size="4"] .three-only { display: none !important; }
   :root:not([data-size="4"]) .four-only { display: none !important; }
+  :root[data-size="4"] .no-four { display: none !important; }
   .size-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
   .size-row .size-label { color: var(--muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
   .size-row .mode-switch { grid-template-columns: repeat(3, 1fr); }
@@ -753,7 +754,7 @@
         <li title="Turn the whole cube left / right (y, y′)"><span class="kp-keys"><kbd>←</kbd><kbd>→</kbd></span><span>Turn</span></li>
         <li title="Tip the whole cube up / down (x, x′)"><span class="kp-keys"><kbd>↑</kbd><kbd>↓</kbd></span><span>Tip</span></li>
         <li title="Zoom in / out (or scroll); 0 resets"><span class="kp-keys"><kbd>+</kbd><kbd>−</kbd></span><span>Zoom</span></li>
-        <li class="learn-only three-only" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
+        <li class="learn-only no-four" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
     </div>
   </nav>
   <dialog class="confirm" id="resetDialog" aria-labelledby="resetTitle">
@@ -1119,7 +1120,7 @@
       <button id="compExitBtn" hidden>Exit competition</button>
     </section>
 
-    <section class="coach learn-only three-only">
+    <section class="coach learn-only no-four">
       <div class="coach-head">
         <h2>Solving steps</h2>
         <button id="hintBtn" class="primary" title="Show the next moves (H)">Hint <kbd>H</kbd></button>
@@ -2945,6 +2946,7 @@
     // The trainer is 3×3 only; the lesson switches to this size's steps.
     if (n !== 3 && !$('panel-trainer').hidden) showTab('practice');
     lessonSizeChanged();
+    buildStages();
     placeFaceLabels();
     renderControlRows();
     renderTurnSheet();
@@ -3308,8 +3310,10 @@
       return cur;
     }
     // Center stickers of each face, and each edge's two halves (4×4), for counting.
-    const centers = new Map(), edgeBy = new Map();
+    const centers = new Map(), edgeBy = new Map(), pieceBy = new Map();
     slots.forEach((s, i) => {
+      if (!pieceBy.has(kstr(s.c))) pieceBy.set(kstr(s.c), []);
+      pieceBy.get(kstr(s.c)).push(i);
       const big = s.c.filter(v => Math.abs(v) === H).length;
       if (big === 1) { if (!centers.has(kstr(s.n))) centers.set(kstr(s.n), []); centers.get(kstr(s.n)).push(i); }
       if (big === 2 && n === 4) {
@@ -3318,7 +3322,7 @@
         edgeBy.get(key)[half].push(i);
       }
     });
-    return (sims[n] = { n, H, at, solved, apply, centers, edges: [...edgeBy.values()] });
+    return (sims[n] = { n, H, at, slots, solved, apply, centers, edges: [...edgeBy.values()], pieces: [...pieceBy.values()] });
   }
   // The color a face has on a solved cube (white on top, green in front).
   const colorOf = v => COLS.indexOf(FACES.find(f => kstr(f.n) === kstr(v)).c);
@@ -3499,6 +3503,133 @@
     return backwards([], [{ frame: fr, grip: gripText('yellow', fr), moves: movesIn(fr, '2R2 U2 2R2 u2 2R2 u2 U2'), caption: 'Swap the front and back edges' }]);
   }
 
+  // ---------- 2×2 hints: the three steps of the 2×2 lesson ----------
+  // With no centers, the cube can end up solved in any of 24 orientations. The hint picks the one the
+  // white layer is closest to, then works out the step and searches for the next moves, as on the 3×3.
+  const STAGES2 = [{ name: 'White layer', lesson: 1 }, { name: 'Yellow corners home', lesson: 3 }, { name: 'Twist yellow corners', lesson: 4 }];
+  const stageList = () => cube.n === 2 ? STAGES2 : STAGES;
+  const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  let orients2 = null;
+  function orientations2() {
+    if (orients2) return orients2;
+    const S = sim(2), fr = makeFrame(W_UP, SIDES[0]), turns = [movesIn(fr, 'x'), movesIn(fr, 'y')];
+    const seen = new Map([[S.solved.join(), S.solved]]);
+    for (let todo = [S.solved]; todo.length;) {
+      const next = [];
+      for (const st of todo) for (const t of turns) {
+        const r = S.apply(st, t);
+        if (!seen.has(r.join())) { seen.set(r.join(), r); next.push(r); }
+      }
+      todo = next;
+    }
+    const white = colorOf(W_UP);
+    return (orients2 = [...seen.values()].map(T => ({ T, w: S.slots[T.indexOf(white)].n })));
+  }
+  // The cube on screen as stickers of the any-size model, with the mesh behind each one (for highlights).
+  function readSim(S) {
+    scene.updateMatrixWorld();
+    const st = new Uint8Array(S.solved.length), meshes = [], v = new THREE.Vector3(), d = new THREE.Vector3();
+    for (const s of stickers) {
+      s.parent.getWorldPosition(v); s.getWorldDirection(d);
+      const i = S.at([v.x, v.y, v.z].map(a => Math.round(a * 2) / 2), [d.x, d.y, d.z].map(Math.round));
+      st[i] = COLS.indexOf(s.userData.color);
+      meshes[i] = s;
+    }
+    return { st, meshes };
+  }
+  // How far the cube is in orientation o: white corners solved, top corners home (twists ignored),
+  // top corners with yellow up, and the pieces that still need each.
+  function status2(S, st, o) {
+    const r = { white: 0, home: 0, up: 0, solved: true, need: [[], [], []] };
+    for (const idx of S.pieces) {
+      const ok = idx.every(i => st[i] === o.T[i]);
+      if (!ok) r.solved = false;
+      if (dot3(S.slots[idx[0]].c, o.w) > 0) { if (ok) r.white++; else r.need[0].push(idx); continue; }
+      const home = idx.map(i => st[i]).sort().join() === idx.map(i => o.T[i]).sort().join();
+      if (home) r.home++; else r.need[1].push(idx);
+      const yi = idx.find(i => dot3(S.slots[i].n, o.w) < 0);
+      if (home && st[yi] === o.T[yi]) r.up++; else r.need[2].push(idx);
+    }
+    r.stage = r.white < 4 ? 0 : r.home < 4 ? 1 : !r.solved ? 2 : 7;
+    return r;
+  }
+  function best2(S, st) {
+    let best = null;
+    for (const o of orientations2()) {
+      const r = status2(S, st, o), key = r.white * 100 + (r.white === 4 ? r.home * 10 + r.up : 0);
+      if (!best || key > best.key) best = { o, r, key };
+    }
+    return best;
+  }
+  // Iterative deepening over phases, like phaseSearch, on the any-size model.
+  function simSearch(S, st, options, maxPhases, goal, extra) {
+    function dfs(cur, left) {
+      for (const o of options) {
+        const next = S.apply(cur, o.moves);
+        if (extra && !extra(next)) continue;
+        if (left === 1) { if (goal(next)) return [o]; }
+        else { const r = dfs(next, left - 1); if (r) return [o, ...r]; }
+      }
+      return null;
+    }
+    for (let n = 1; n <= maxPhases; n++) { const r = dfs(st, n); if (r) return r; }
+    return null;
+  }
+  function findHint2() {
+    const S = sim(2), { st, meshes } = readSim(S), { o, r } = best2(S, st), W = o.w, Y = neg(W);
+    const sides = SIDES.concat([W_UP, Y_UP]).filter(v => dot3(v, W) === 0);
+    const stage = r.stage;
+    let phases = null, glow = [], text = '';
+    if (stage === 0) {
+      // Keep the white corners already in, and add one more: D under its spot, then R' D' R D.
+      const kept = S.pieces.filter(idx => dot3(S.slots[idx[0]].c, W) > 0 && idx.every(i => st[i] === o.T[i]));
+      const opts = [];
+      for (const s of sides) for (const d of ['', 'D', "D'", 'D2']) for (const k of [1, 3, 5]) opts.push(option(makeFrame(W, s), `${d} ${repeat(TRIG, k)}`));
+      phases = simSearch(S, st, opts, 2, s => status2(S, s, o).white > r.white && kept.every(idx => idx.every(i => s[i] === o.T[i])));
+      if (phases) {
+        // The corner this places: the one solved after that wasn't before, found where it is now by its colors.
+        const after = S.apply(st, phases.flatMap(p => p.moves));
+        const spot = S.pieces.find(idx => dot3(S.slots[idx[0]].c, W) > 0 && !kept.includes(idx) && idx.every(i => after[i] === o.T[i]));
+        const want = spot.map(i => o.T[i]).sort().join();
+        glow = S.pieces.find(idx => idx.map(i => st[i]).sort().join() === want);
+        const names = spot.map(i => o.T[i]).filter(c => c !== colorOf(W_UP)).map(cname).join('–');
+        text = `Step 1, white layer. Next, the white–${names} corner: it's glowing. Hold white on top, then do the moves below.`;
+      }
+    } else if (stage === 1) {
+      const opts = [...['U', "U'", 'U2'].map(u => option(makeFrame(Y, sides[0]), u)), ...sides.map(s => option(makeFrame(Y, s), "U R U' L' U R' U' L"))];
+      phases = simSearch(S, st, opts, 5, s => status2(S, s, o).home === 4);
+      glow = r.need[1].flat();
+      text = 'Step 2, yellow corners home. The glowing corners aren\'t home yet. Turn U until exactly one corner is home, hold it at the front right, then do the moves below.';
+    } else if (stage === 2) {
+      // One grip for the whole step; U between corners, and a last U to line the top up.
+      const fr = makeFrame(Y, sides[0]), frc = add(fr.up, fr.front, cross3(fr.up, fr.front)).map(v => v / 2), yellow = o.T[S.at(frc, fr.up)];
+      const opts = [];
+      for (const u of QUARTERS) for (const k of [2, 4]) opts.push(option(fr, `${u} ${repeat(TRIG, k)}`));
+      const finals = QUARTERS.map(u => option(fr, u));
+      const done = s => finals.find(f => status2(S, S.apply(s, f.moves), o).solved);
+      const f0 = done(st);
+      if (f0) phases = [f0];
+      else {
+        const found = simSearch(S, st, opts, 4, s => !!done(s), s => s[S.at(frc, fr.up)] === yellow);
+        if (found) phases = [...found, done(S.apply(st, found.flatMap(p => p.moves)))];
+      }
+      glow = r.need[2].flat();
+      text = 'Step 3, twist yellow corners. Twist the glowing corners so yellow faces up. Keep the same grip the whole time and only turn U between corners.';
+    } else text = 'The cube is solved. Scramble it to go again.';
+    if (phases) {
+      // Copies, since a search can use the same option twice and each part gets its own caption.
+      phases = phases.filter(p => p.moves.length).map(p => ({ ...p }));
+      const isU = p => p.moves.every(m => m.label[0] === 'U');
+      phases.forEach((p, i) => {
+        const twists = p.moves.filter(m => m.label[0] !== 'U').length / 4;
+        p.cap = `Part ${i + 1}: ` + (stage === 0 ? (i < phases.length - 1 ? 'drop a corner out of the top layer' : 'put the corner in')
+          : stage === 1 ? (isU(p) ? 'turn the top so exactly one corner is home' : 'keep the front-right corner, move the other three')
+          : !twists ? 'turn the top to line everything up' : (p.moves[0].label[0] === 'U' ? 'bring the next corner to the front right, then twist it' : 'twist the front-right corner'));
+      });
+    } else if (stage !== 7) text = `Step ${stage + 1}, ${STAGES2[stage].name.toLowerCase()}: I couldn't find a short hint from here. The lesson for this step explains what to look for.`;
+    return { stage, phases, text, meshes: (glow || []).map(i => meshes[i]).filter(Boolean), counts: [r.white, r.home, r.up] };
+  }
+
   // Pulsing highlight on the stickers of the piece a hint is about.
   var hiMats = {};
   for (const k in STICKER) { hiMats[k] = stickerMats[k].clone(); hiMats[k].emissive = new THREE.Color(0xffffff); }
@@ -3519,19 +3650,27 @@
     { name: 'Yellow cross', lesson: 5 }, { name: 'Yellow edges', lesson: 6 }, { name: 'Yellow corners in place', lesson: 7 },
     { name: 'Twist yellow corners', lesson: 8 },
   ];
-  STAGES.forEach((s, i) => {
-    const li = document.createElement('li');
-    li.innerHTML = `<span class="st-mark" aria-hidden="true"></span><span class="st-name">${s.name}</span><span class="st-count"></span>`;
-    $('stages').appendChild(li);
-  });
+  // The step list for this cube size (rebuilt when the size changes).
+  function buildStages() {
+    $('stages').innerHTML = '';
+    stageList().forEach(s => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="st-mark" aria-hidden="true"></span><span class="st-name">${s.name}</span><span class="st-count"></span>`;
+      $('stages').appendChild(li);
+    });
+  }
+  buildStages();
   function renderStages() {
-    if (cube.n !== 3) return;
-    const st = readState(), L = layout(st), counts = stageCounts(st, L), stage = stageOf(counts);
+    if (cube.n === 4) return;
+    let counts, stage;
+    if (cube.n === 2) { const S = sim(2), r = best2(S, readSim(S).st).r; counts = [r.white, r.home, r.up]; stage = r.stage; }
+    else { const st = readState(); counts = stageCounts(st, layout(st)); stage = stageOf(counts); }
+    const list = stageList();
     [...$('stages').children].forEach((li, i) => {
       li.className = i < stage ? 'done' : i === stage ? 'now' : '';
       li.querySelector('.st-count').textContent = i === stage ? `${counts[i]}/4` : '';
     });
-    $('stagesNote').textContent = stage === 7 ? 'Solved.' : `You're on step ${stage + 1}: ${STAGES[stage].name.toLowerCase()}.`;
+    $('stagesNote').textContent = stage === 7 ? 'Solved.' : `You're on step ${stage + 1}: ${list[stage].name.toLowerCase()}.`;
   }
 
   const hint = { result: null, flat: [], pos: 0, stale: false };
@@ -3541,7 +3680,16 @@
     return d > 0 ? 'top layer' : d < 0 ? 'bottom layer' : 'middle layer';
   }
   function getHint() {
-    if (isSpeed() || state.scrambling || anim || queue.length || cube.n !== 3) return;
+    if (isSpeed() || state.scrambling || anim || queue.length || cube.n === 4) return;
+    if (cube.n === 2) {
+      const h = findHint2();
+      hint.result = h; hint.pos = 0; hint.stale = false;
+      hint.flat = (h.phases || []).flatMap((p, pi) => p.moves.map(m => ({ ...m, phase: pi })));
+      setHighlight(h.meshes);
+      $('hintText').textContent = h.text;
+      renderHint();
+      return;
+    }
     const st = readState();
     const h = findHint(st);
     hint.result = h; hint.pos = 0; hint.stale = false;
@@ -3590,7 +3738,7 @@
       if (h.phases.length > 1) {
         const cap = document.createElement('div');
         cap.className = 'v-cap';
-        cap.textContent = `Part ${pi + 1}: ${cname(centerColor(readState(), p.frame.front))} in front`;
+        cap.textContent = cube.n === 2 ? p.cap : `Part ${pi + 1}: ${cname(centerColor(readState(), p.frame.front))} in front`;
         row.appendChild(cap);
       }
       const alg = document.createElement('div');
@@ -3670,7 +3818,7 @@
   $('hintPlayBtn').addEventListener('click', () => playHint(true));
   $('hintLessonBtn').addEventListener('click', () => {
     if (!hint.result || hint.result.stage === 7) return;
-    goToStep(STAGES[hint.result.stage].lesson);
+    goToStep(stageList()[hint.result.stage].lesson);
     showTab('lesson');
   });
 
