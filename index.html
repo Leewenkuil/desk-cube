@@ -271,6 +271,7 @@
   #progSvg .tick { fill: var(--muted); font: 11px var(--font-mono); font-variant-numeric: tabular-nums; }
   #progSvg .solve { fill: var(--muted); fill-opacity: 0.55; stroke: var(--surface); stroke-width: 1.5; }
   #progSvg .ao5 { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  #progSvg .ao5.gap { stroke-width: 1.5; stroke-dasharray: 4 4; opacity: 0.55; }
   #progSvg .cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
   #progSvg .hl { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
   #progSvg .hl.dot { fill: var(--fg); }
@@ -4260,7 +4261,7 @@
   }
 
   // Progress chart: each finished solve as a faint dot, the rolling average of 5 as the line.
-  // Oldest on the left. DNFs leave a gap in the dots; two DNFs in a set of five break the line.
+  // Oldest on the left. DNFs leave a gap in the dots; two DNFs in a set of five make that average a DNF, shown dashed.
   const prog = { range: 'last', pts: [] };
   try { if (localStorage.getItem('deskcube-progrange') === 'all') prog.range = 'all'; } catch (e) {}
   function renderProgress() {
@@ -4277,7 +4278,7 @@
       const s = all[i];
       // The average of the five solves ending here (newest first, as aoN expects).
       const ao5 = i >= 4 ? aoN(all.slice(i - 4, i + 1).reverse().map(val), 5) : null;
-      pts.push({ n: i + 1, s, time: s.dnf ? null : s.time_ms, ao5: ao5 === Infinity ? null : ao5 });
+      pts.push({ n: i + 1, s, time: s.dnf ? null : s.time_ms, ao5: ao5 === Infinity ? null : ao5, ao5dnf: ao5 === Infinity });
     }
     prog.pts = pts;
     const svg = $('progSvg'), W = Math.max(280, svg.clientWidth || 560), H = 180;
@@ -4300,12 +4301,17 @@
       out += `<text class="tick" x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${anchor}">#${pts[i].n}</text>`;
     }
     pts.forEach((p, i) => { if (p.time !== null) out += `<circle class="solve" cx="${x(i).toFixed(1)}" cy="${y(p.time).toFixed(1)}" r="4"/>`; });
-    let d = '', pen = false;
+    // Where averages are DNF the solid line stops, and a dashed one joins it up to the next average.
+    let d = '', gaps = '', pen = false, last = null;
     pts.forEach((p, i) => {
       if (p.ao5 === null) { pen = false; return; }
-      d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.ao5).toFixed(1)}`;
+      const xy = `${x(i).toFixed(1)} ${y(p.ao5).toFixed(1)}`;
+      if (!pen && last) gaps += `M${last}L${xy}`;
+      d += `${pen ? 'L' : 'M'}${xy}`;
       pen = true;
+      last = xy;
     });
+    if (gaps) out += `<path class="ao5 gap" d="${gaps}"/>`;
     if (d) out += `<path class="ao5" d="${d}"/>`;
     out += '<g id="progHover"></g>';
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
@@ -4339,7 +4345,7 @@
     const tip = $('progTip');
     const when = new Date(p.s.solved_at).toLocaleDateString([], { day: 'numeric', month: 'short' });
     tip.innerHTML = '';
-    for (const [k, v] of [['Solve', `#${p.n} · ${when}`], ['Time', p.time === null ? 'DNF' : fmt(p.time)], ['Ao5', p.ao5 === null ? '–' : fmt(p.ao5)]]) {
+    for (const [k, v] of [['Solve', `#${p.n} · ${when}`], ['Time', p.time === null ? 'DNF' : fmt(p.time)], ['Ao5', p.ao5dnf ? 'DNF' : p.ao5 === null ? '–' : fmt(p.ao5)]]) {
       const row = document.createElement('div');
       row.innerHTML = '<span></span> <b></b>';
       row.firstChild.textContent = k;
