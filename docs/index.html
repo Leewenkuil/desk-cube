@@ -784,6 +784,7 @@ img { max-width: 100%; }
       <ul class="kp-other">
         <li class="four-only" title="Hold Space and press a face letter: that face and the layer inside it turn together"><span class="kp-keys"><kbd>Space</kbd>+<kbd>R</kbd></span><span>Wide</span></li>
         <li class="four-only" title="Hold 2 and press a face letter: only the layer just inside that face turns"><span class="kp-keys"><kbd>2</kbd>+<kbd>R</kbd></span><span>Inner</span></li>
+        <li title="Tap Space during a timed solve to pause it; Enter resumes"><span class="kp-keys"><kbd>Space</kbd></span><span>Pause</span></li>
         <li title="Undo the last turn (also Ctrl+Z)"><span class="kp-keys"><kbd>⌫</kbd></span><span>Undo</span></li>
         <li title="Flip the cube upside down (x2)"><span class="kp-keys"><kbd>V</kbd></span><span>Flip</span></li>
         <li title="Show or hide this panel"><span class="kp-keys"><kbd>?</kbd></span><span>Panel</span></li>
@@ -4142,22 +4143,30 @@ img { max-width: 100%; }
   syncPhoneBar();
 
   // Keys held down as modifiers: Space (wide turns) and 2 (inner layers on the 4×4).
+  // A quick tap of Space pauses a timed solve instead: it pauses on release if no turn was made while held.
   const held = new Set();
-  window.addEventListener('keyup', e => held.delete(e.code));
+  let spaceTurned = false;
+  const canPause = () => !paused && !strictRules() && !state.scrambling && (state.mode === 'running' || state.mode === 'ready');
+  window.addEventListener('keyup', e => {
+    if (e.code === 'Space' && held.has('Space') && !spaceTurned && canPause() && !document.querySelector('dialog[open]')) pauseSolve();
+    held.delete(e.code);
+  });
   window.addEventListener('blur', () => held.clear());
   // A face turn becomes wide while Space is held, or the inner layer while 2 is held.
   function withHeld(m) {
     if (!/^[UDLRFB]'?$/.test(m)) return m;
     if (held.has('Digit2') && cube.n === 4) return '2' + m;
-    if (held.has('Space')) return m[0].toLowerCase() + m.slice(1);
+    if (held.has('Space')) { spaceTurned = true; return m[0].toLowerCase() + m.slice(1); }
     return m;
   }
   window.addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input, textarea, select')) return;
     if ((e.code === 'Space' || e.code === 'Digit2') && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('dialog[open]')) {
-      // Space still presses other focused buttons and links; on the turn buttons it's the modifier.
-      if (e.code === 'Space' && e.target.closest && e.target.closest('button, a, summary') && !e.target.closest('#pad, .kp-move')) return;
+      // Space still presses other focused buttons and links (except during a solve, where it pauses);
+      // on the turn buttons it's the modifier.
+      if (e.code === 'Space' && e.target.closest && e.target.closest('button, a, summary') && !e.target.closest('#pad, .kp-move') && !canPause()) return;
       e.preventDefault();
+      if (e.code === 'Space' && !e.repeat) spaceTurned = false;
       held.add(e.code);
       return;
     }
