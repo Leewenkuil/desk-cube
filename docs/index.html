@@ -1423,15 +1423,21 @@ img { max-width: 100%; }
   function viewFrame() {
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
     const toCam = camera.position.clone().normalize();
-    const snap = (v, exclude) => {
+    const snap = v => {
       let best = null;
-      // z is checked first so a dead-on corner view counts the green side as the front.
-      for (const a of ['z', 'x', 'y']) if (a !== exclude && (!best || Math.abs(v[a]) > Math.abs(v[best]) + 1e-6)) best = a;
+      for (const a of ['z', 'x', 'y']) if (!best || Math.abs(v[a]) > Math.abs(v[best]) + 1e-6) best = a;
       return { axis: best, sign: Math.sign(v[best]) || 1 };
     };
     const vec = f => { const v = new THREE.Vector3(); v[f.axis] = f.sign; return v; };
-    const U = snap(up), F = snap(toCam, U.axis);
-    const R = snap(new THREE.Vector3().crossVectors(vec(U), vec(F)));
+    const right = f => snap(new THREE.Vector3().crossVectors(vec(U), vec(f)));
+    const U = snap(up);
+    // Of the two side faces in view, the left one is the front when you look at a corner, the way a cube
+    // is held with R on the right. It stays the front until the right face is clearly turned towards you
+    // (more than 67.5° round), so a tiny drag never swaps the letters over.
+    const [p, q] = ['x', 'y', 'z'].filter(a => a !== U.axis).map(a => ({ axis: a, sign: Math.sign(toCam[a]) || 1 }));
+    const pr = right(p), [left, other] = pr.axis === q.axis && pr.sign === q.sign ? [p, q] : [q, p];
+    const F = Math.abs(toCam[other.axis]) < Math.abs(toCam[left.axis]) * Math.tan(3 * Math.PI / 8) ? left : other;
+    const R = right(F);
     const neg = f => ({ axis: f.axis, sign: -f.sign });
     return { U, D: neg(U), F, B: neg(F), R, L: neg(R) };
   }
