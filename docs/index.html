@@ -1574,10 +1574,12 @@ img { max-width: 100%; }
     const sel = cubies.filter(c => turnsPiece(item, snapC(c.position[axis])));
     if (layer === null) sel.push(core);
     for (const c of sel) pivot.attach(c);
-    const base = item.replay ? Math.min(turnMs, 110) / replay.speed : item.fast ? Math.min(55, turnMs) : turnMs;
+    // A replay turn stretches over most of the time until the next one, so the solve flows instead of snapping;
+    // a long pause still shows as a pause.
+    const base = item.replay ? Math.min(450, Math.max(90, item.gap * 0.85)) / replay.speed : item.fast ? Math.min(55, turnMs) : turnMs;
     // Keep up with fast typing (or a fast replay): the more turns are waiting, the quicker each one plays.
     const waiting = item.user || item.replay ? queue.filter(q => q.user || q.replay).length : 0;
-    const dur = reduceMotion ? 0 : base * (Math.abs(angle) > Math.PI / 2 + 0.01 ? 1.4 : 1) / (1 + waiting);
+    const dur = reduceMotion ? 0 : base * (!item.replay && Math.abs(angle) > Math.PI / 2 + 0.01 ? 1.4 : 1) / (1 + waiting);
     anim = { item, sel, axis, angle, t0: performance.now(), dur };
   }
 
@@ -3683,8 +3685,8 @@ img { max-width: 100%; }
     if (replay.playing) {
       replay.clock += (now - replay.last) * replay.speed;
       while (replay.i < replay.turns.length && replay.turns[replay.i].t <= replay.clock) {
-        const t = replay.turns[replay.i++];
-        enqueue({ axis: t.axis, layer: t.layer, angle: t.angle, wide: t.wide, replay: true });
+        const t = replay.turns[replay.i++], next = replay.turns[replay.i];
+        enqueue({ axis: t.axis, layer: t.layer, angle: t.angle, wide: t.wide, replay: true, gap: next ? next.t - t.t : 250 });
       }
       if (replay.i >= replay.turns.length && replay.clock >= replay.total && !queue.length && !anim) {
         replay.playing = false;
