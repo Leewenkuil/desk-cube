@@ -605,7 +605,7 @@ img { max-width: 100%; }
 
   .learn-btn { padding: 8px 14px; }
 
-  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
+  .tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
   .tabs button { border: 0; background: transparent; padding: 8px; color: var(--muted); }
   .tabs button[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
   .panel { display: flex; flex-direction: column; gap: 22px; }
@@ -704,7 +704,7 @@ img { max-width: 100%; }
         <button role="radio" id="modeSpeed" aria-checked="false" title="Hide all learning help">Solving</button>
       </div>
       <button class="learn-btn" id="keysBtn" aria-controls="keysPanel" title="Show or hide the controls (?)">Controls</button>
-      <button class="learn-btn learn-only three-only" id="learnBtn">Learn to solve</button>
+      <button class="learn-btn learn-only" id="learnBtn">Learn to solve</button>
       <button class="theme-switch" id="themeBtn" role="switch" aria-checked="false" title="Switch between light and dark">
         <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
         <span>Dark</span>
@@ -1040,14 +1040,14 @@ img { max-width: 100%; }
       <span class="size-label" id="sizeLabel">Cube</span>
       <div class="mode-switch" id="sizePick" role="radiogroup" aria-labelledby="sizeLabel">
         <button role="radio" data-size="2" aria-checked="false" title="2×2: corners only">2×2</button>
-        <button role="radio" data-size="3" aria-checked="true" title="3×3: the classic cube, with lessons and hints">3×3</button>
+        <button role="radio" data-size="3" aria-checked="true" title="3×3: the classic cube, with hints and the trainer">3×3</button>
         <button role="radio" data-size="4" aria-checked="false" title="4×4: wide turns move the outer two layers">4×4</button>
       </div>
     </div>
-    <div class="tabs learn-only three-only" role="tablist">
+    <div class="tabs learn-only" role="tablist">
       <button role="tab" id="tab-practice" aria-selected="true" aria-controls="panel-practice">Practice</button>
       <button role="tab" id="tab-lesson" aria-selected="false" aria-controls="panel-lesson">Lesson</button>
-      <button role="tab" id="tab-trainer" aria-selected="false" aria-controls="panel-trainer">Trainer</button>
+      <button role="tab" id="tab-trainer" class="three-only" aria-selected="false" aria-controls="panel-trainer">Trainer</button>
     </div>
 
     <div class="panel" id="panel-lesson" role="tabpanel" hidden>
@@ -1737,7 +1737,7 @@ img { max-width: 100%; }
         if (fr) flyToFrame(fr);
       }
       if (lesson.pos === flat.length) {
-        const s = LESSON[lesson.step];
+        const s = steps()[lesson.step];
         setLessonStatus(s.done || 'Those are all the moves for this example.', !!s.done);
         if (s.done) playChime('step');
       }
@@ -2116,22 +2116,185 @@ img { max-width: 100%; }
       ],
     },
   ];
+  // The 2×2 and 4×4 lessons. Their `gen` steps build examples with the any-size model further down
+  // (the hint solver behind the 3×3 lesson only knows the 3×3).
+  const LESSON2 = [
+    {
+      title: 'How the 2×2 works',
+      body: [
+        'The 2×2 is a 3×3 with only the eight <b>corners</b>: no edges and no centers. The colors are the same: white opposite yellow, green opposite blue, red opposite orange.',
+        'With no centers to go by, the first corner you place decides where every other color goes.',
+        'Moves use the same letters as the 3×3: <code class="mv">U</code> top, <code class="mv">D</code> bottom, <code class="mv">F</code> front, <code class="mv">B</code> back, <code class="mv">R</code> right, <code class="mv">L</code> left. A letter alone turns that face clockwise as you look at it, <code class="mv">R\'</code> turns it counter-clockwise, and <code class="mv">R2</code> is a half turn.',
+        'This is the 3×3 beginner\'s method with the edge steps left out, so the moves will look familiar. Press Play to watch four moves.',
+      ],
+      demo: "R U R' U'",
+    },
+    {
+      title: 'Make the white layer',
+      gen: () => gen2White(),
+      done: 'The white layer is finished: white on top, and the two top stickers on each side match.',
+      body: [
+        '<b>Goal:</b> all four white corners on top, with the two top stickers on each side the same color.',
+        'Hold white on top. Any white corner can go first, and the others line up with it: each one goes in the top spot between the corners that share its colors.',
+        'Turn <code class="mv">D</code> until a white corner sits directly under its spot, and hold the cube so that spot is at the top front right. Repeat <code class="mv">R\' D\' R D</code> until the corner goes in with white on top. It takes 1, 3 or 5 repeats, depending on which way the white sticker faces.',
+        'If a white corner is in the top layer but in the wrong spot or twisted, hold it at the top front right and do <code class="mv">R\' D\' R D</code> once to drop it into the bottom layer. Then place it as above.',
+      ],
+    },
+    {
+      title: 'Turn the cube over',
+      gen: () => gen2Flip(),
+      done: 'Yellow is on top now. Keep it there for the rest of the solve.',
+      body: [
+        'The white layer is done. Turn the cube upside down so yellow is on top. You can use the Flip upside down button on the Practice tab, or press V.',
+        'The letters follow your screen, so <code class="mv">U</code> now turns the yellow face.',
+      ],
+    },
+    {
+      title: 'Move the yellow corners home',
+      gen: () => gen2Home(),
+      done: 'Every yellow corner is home. Some may still be twisted: that\'s the last step.',
+      body: [
+        '<b>Goal:</b> each yellow corner in its home spot. Twisted is fine for now.',
+        'A corner is home when it sits above the bottom-layer colors that match it: the yellow–green–red corner belongs above the spot where green and red meet in the bottom layer.',
+        'Turn <code class="mv">U</code> until exactly one corner is home. Hold it at the top front right and do <code class="mv">U R U\' L\' U R\' U\' L</code>. That moves the other three around and leaves it alone. Do it again if they aren\'t home yet.',
+        'If no turn of <code class="mv">U</code> gives exactly one home corner, do the moves once from anywhere and look again.',
+      ],
+    },
+    {
+      title: 'Twist the last corners',
+      gen: () => gen2Twist(),
+      done: 'Solved! That\'s the whole 2×2 method.',
+      body: [
+        '<b>Goal:</b> twist each yellow corner so yellow faces up. Then the cube is solved.',
+        'Hold the cube so a corner with yellow facing the wrong way is at the top front right. Repeat <code class="mv">R\' D\' R D</code> until its yellow faces up.',
+        'Then turn only <code class="mv">U</code> to bring the next wrong corner to the top front right, and repeat. Never turn the whole cube during this step.',
+        'The bottom layer looks scrambled partway through. Keep going: it comes back once the last corner is twisted. A final <code class="mv">U</code> lines the top up.',
+      ],
+    },
+    {
+      title: 'Solve one on your own',
+      body: [
+        'That\'s the whole method: the white layer, turn the cube over, move the yellow corners home, then twist them.',
+        'Scramble the cube and work through the steps, coming back here whenever you need a reminder. Once it feels easy, the 3×3 lesson builds on the same moves.',
+      ],
+    },
+  ];
+  const LESSON4 = [
+    {
+      title: 'How the 4×4 works',
+      body: [
+        'The 4×4 has <b>corners</b> like the 3×3, but each face has four <b>center</b> pieces that can move, and each edge comes in two halves.',
+        'The plan is called <b>reduction</b>: build the six centers, pair up the edge halves, and then the cube solves like a big 3×3. Two cases can come up at the end that never happen on a 3×3, and the last two steps fix them.',
+        'Outer turns use the 3×3 letters. <code class="mv">2R</code> turns just the inner layer next to R, and a lowercase <code class="mv">r</code> turns R and that inner layer together. The same goes for the other letters.',
+        'Press Play to watch <code class="mv">2R U 2R\'</code>: the inner layer carries a column of center pieces round.',
+      ],
+      demo: "2R U 2R'",
+    },
+    {
+      title: 'Build the white center',
+      gen: () => gen4Centers(0),
+      done: 'The white center is finished: four white pieces together on top.',
+      body: [
+        '<b>Goal:</b> the four white center pieces together on top.',
+        'Find a white center piece on a side face and hold that face in front. Turn <code class="mv">F</code> until the piece is at the top right of the front center, and turn <code class="mv">U</code> until a spot on top that isn\'t white is at the front left. Then <code class="mv">r U\' r\'</code> swaps the two: white goes up.',
+        'The middle turn picks the top spot: <code class="mv">r U r\'</code> and <code class="mv">r U2 r\'</code> fill other spots, so use whichever lines up without extra turns.',
+        'A white piece on the bottom swaps straight up with <code class="mv">r2 U r2</code> (or <code class="mv">U\'</code> or <code class="mv">U2</code> in the middle) after turning <code class="mv">D</code> to line it up.',
+        'The edges and corners get mixed up along the way. That\'s fine: they come later.',
+      ],
+    },
+    {
+      title: 'Build the yellow center',
+      gen: () => gen4Centers(1),
+      done: 'Both the white and yellow centers are finished.',
+      body: [
+        '<b>Goal:</b> the yellow center on the face opposite white.',
+        'Turn the cube over so white is on the bottom, and build yellow on top the same way, with <code class="mv">r U\' r\'</code> from the front.',
+        'Only take yellow pieces from the four side faces. The <code class="mv">r2 U r2</code> trick would swap white pieces off the bottom.',
+      ],
+    },
+    {
+      title: 'Build the side centers',
+      gen: () => gen4Centers(2),
+      done: 'All six centers are finished.',
+      body: [
+        '<b>Goal:</b> the last four centers, in the right order. With white on top and green in front, red goes on the right, blue at the back and orange on the left.',
+        'Hold white on the left and yellow on the right. Now <code class="mv">r</code> only moves the four side centers, so white and yellow stay put.',
+        'Build one side center on top with <code class="mv">r U\' r\'</code> from the front. Then turn the cube over, white still on the left, and build the opposite color on top the same way.',
+        'The last two centers are opposite each other. Hold them on top and bottom and swap pieces between them with <code class="mv">r2 U r2</code> until both are done.',
+      ],
+    },
+    {
+      title: 'Pair up the edges',
+      gen: () => gen4Edges(),
+      done: 'Every edge is paired: the cube now behaves like a big 3×3.',
+      body: [
+        '<b>Goal:</b> join each edge\'s two halves, so every edge is one solid color pair.',
+        'Find two halves of the same edge. Using outer turns only (never the inner layers, which would break the centers), put one at the front left and the other at the front right, both in the upper middle row, with the same color facing you.',
+        'Then do <code class="mv">d R U R\' F R\' F\' R d\'</code>. The <code class="mv">d</code> moves the lower halves aside, <code class="mv">R U R\' F R\' F\' R</code> flips the front right edge, and <code class="mv">d\'</code> brings everything back joined. It often pairs two edges at once.',
+        'Repeat for the rest. For the last two, set them up the same way: the same moves pair both.',
+      ],
+    },
+    {
+      title: 'Solve it like a 3×3',
+      body: [
+        'Each center is now a 2×2 block and each edge is a pair, so treat the cube as a 3×3 and use the 3×3 beginner\'s method.',
+        'Use only outer turns (<code class="mv">U</code>, <code class="mv">R</code>, <code class="mv">F</code> and so on). Inner and wide turns would split the centers and edges again.',
+        'For the yellow cross, use <code class="mv">F R U R\' U\' F\'</code> (twice for an L shape) instead of the <code class="mv">f</code> version.',
+        'If you get stuck on the yellow cross or on the last edges, the next two steps explain why.',
+      ],
+    },
+    {
+      title: 'Fix a flipped edge',
+      gen: () => gen4OllParity(),
+      done: 'The edge is flipped back, and the yellow cross is finished.',
+      body: [
+        'If you reach the yellow cross and see one or three yellow edges facing up, a single edge is flipped. That can\'t happen on a 3×3, so no 3×3 moves fix it.',
+        'Turn <code class="mv">U</code> so the flipped edge is at the front, with yellow facing you. Then do <code class="mv">2R2 B2 U2 2L U2 2R\' U2 2R U2 F2 2R F2 2L\' B2 2R2</code>. It flips that one edge and leaves everything else as it was.',
+        'It\'s long, so take it in groups: most of it is <code class="mv">U2</code> between inner-layer turns.',
+      ],
+    },
+    {
+      title: 'Fix two swapped edges',
+      gen: () => gen4PllParity(),
+      done: 'Solved! That\'s the whole 4×4 method.',
+      body: [
+        'At the end, you might find two opposite yellow edges swapped, or the yellow edges never line up whatever you do. That\'s the other 4×4-only case.',
+        'Hold the two swapped edges at the front and back, and do <code class="mv">2R2 U2 2R2 u2 2R2 u2 U2</code>. It swaps them and touches nothing else.',
+        'If it shows up before the last step, fix it, then carry on with the 3×3 steps.',
+      ],
+    },
+    {
+      title: 'Solve one on your own',
+      body: [
+        'That\'s the whole method: white center, yellow center, side centers, pair the edges, then solve it like a 3×3, fixing a flipped edge or two swapped edges if they come up.',
+        'Scramble the cube and work through the steps. A first 4×4 solve takes a while, so come back to this tab whenever you need a reminder.',
+      ],
+    },
+  ];
+  const LESSONS = { 2: LESSON2, 3: LESSON, 4: LESSON4 };
+  function steps() { return LESSONS[cube.n]; }
   const EXAMPLE_NOTE = 'The example starts from a new scramble with the earlier steps already done. Press <b>Play</b> to watch this step solved part by part, or <b>Next move</b> to go one turn at a time. <b>New example</b> deals a different cube.';
 
+  // Each size remembers its own step.
+  const stepKey = () => cube.n === 3 ? 'deskcube-step' : 'deskcube-step-' + cube.n;
   const lesson = { step: 0, ex: null, pos: 0, ready: false, autoplay: false };
-  try { lesson.step = Math.min(LESSON.length - 1, Math.max(0, +localStorage.getItem('deskcube-step') || 0)); } catch (e) {}
+  function loadLessonStep() {
+    lesson.step = 0;
+    try { lesson.step = Math.min(steps().length - 1, Math.max(0, +localStorage.getItem(stepKey()) || 0)); } catch (e) {}
+  }
+  loadLessonStep();
 
-  const hasExample = s => s.stage !== undefined || !!s.demo;
+  const hasExample = s => s.stage !== undefined || !!s.demo || !!s.gen;
   function lessonMoves() { return lesson.ex ? lesson.ex.flat : []; }
   function setLessonStatus(text, win) { $('lessonStatus').textContent = text; $('lessonStatus').classList.toggle('win', !!win); }
 
   function renderLesson() {
-    const s = LESSON[lesson.step], ex = lesson.ex, has = hasExample(s);
-    $('lessonCount').textContent = `Step ${lesson.step + 1} of ${LESSON.length}`;
+    const s = steps()[lesson.step], ex = lesson.ex, has = hasExample(s);
+    $('lessonCount').textContent = `Step ${lesson.step + 1} of ${steps().length}`;
     $('lessonJump').value = lesson.step;
     [...$('lessonProgress').children].forEach((el, i) => el.classList.toggle('on', i <= lesson.step));
     $('lessonTitle').textContent = s.title;
-    $('lessonBody').innerHTML = s.body.map(p => `<p>${p}</p>`).join('') + (s.stage !== undefined ? `<p class="lesson-note">${EXAMPLE_NOTE}</p>` : '');
+    $('lessonBody').innerHTML = s.body.map(p => `<p>${p}</p>`).join('') + (s.stage !== undefined || s.gen ? `<p class="lesson-note">${EXAMPLE_NOTE}</p>` : '');
     $('lessonAlgWrap').hidden = !has;
     $('lessonActions').hidden = !has;
     $('tryBtn').hidden = has;
@@ -2149,7 +2312,7 @@ img { max-width: 100%; }
       chip.className = lesson.ready && i < lesson.pos ? 'done' : lesson.ready && i === lesson.pos ? 'next' : '';
     });
     $('prevStep').disabled = lesson.step === 0;
-    $('nextStep').disabled = lesson.step === LESSON.length - 1;
+    $('nextStep').disabled = lesson.step === steps().length - 1;
   }
 
   // Captioned parts of a worked solution, each with its grip and move chips.
@@ -2245,6 +2408,10 @@ img { max-width: 100%; }
   function makeExample(s, fr) {
     const demoMoves = () => s.demo.split(' ').map(l => ({ label: l, ...decode(l, fr) }));
     const finish = (setup, parts) => ({ setup, parts, flat: parts.flatMap((p, pi) => p.moves.map(m => ({ ...m, part: pi }))) });
+    if (s.gen) {
+      for (let tries = 0; tries < 12; tries++) { const r = s.gen(); if (r) return finish(r.setup, r.parts); }
+      return null;
+    }
     if (s.stage === undefined && !s.before) return finish([], [{ frame: null, moves: demoMoves() }]);
     const solved = readState(), target = s.stage !== undefined ? s.stage : s.before;
     for (let tries = 0; tries < 12; tries++) {
@@ -2287,7 +2454,7 @@ img { max-width: 100%; }
   }
 
   function setUpExample(autoplay) {
-    const s = LESSON[lesson.step];
+    const s = steps()[lesson.step];
     if (!hasExample(s)) return false;
     if (anim) finishAnim();
     queue = [];
@@ -2329,11 +2496,11 @@ img { max-width: 100%; }
   }
 
   function goToStep(i) {
-    lesson.step = Math.max(0, Math.min(LESSON.length - 1, i));
+    lesson.step = Math.max(0, Math.min(steps().length - 1, i));
     lesson.ex = null;
     lesson.ready = false;
     lesson.pos = 0;
-    try { localStorage.setItem('deskcube-step', lesson.step); } catch (e) {}
+    try { localStorage.setItem(stepKey(), lesson.step); } catch (e) {}
     setLessonStatus('');
     renderLesson();
   }
@@ -2348,12 +2515,26 @@ img { max-width: 100%; }
     try { localStorage.setItem('deskcube-tab', name); } catch (e) {}
   }
 
-  LESSON.forEach((s, i) => {
-    const o = document.createElement('option');
-    o.value = i; o.textContent = `${i + 1}. ${s.title}`;
-    $('lessonJump').appendChild(o);
-    $('lessonProgress').appendChild(document.createElement('span'));
-  });
+  // The step list and progress bar for the current cube size (rebuilt when the size changes).
+  function buildLessonNav() {
+    $('lessonJump').innerHTML = '';
+    $('lessonProgress').innerHTML = '';
+    $('lessonProgress').style.gridTemplateColumns = `repeat(${steps().length}, 1fr)`;
+    steps().forEach((s, i) => {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = `${i + 1}. ${s.title}`;
+      $('lessonJump').appendChild(o);
+      $('lessonProgress').appendChild(document.createElement('span'));
+    });
+  }
+  function lessonSizeChanged() {
+    loadLessonStep();
+    lesson.ex = null; lesson.ready = false; lesson.pos = 0;
+    setLessonStatus('');
+    buildLessonNav();
+    renderLesson();
+  }
+  buildLessonNav();
   $('lessonJump').addEventListener('change', e => goToStep(+e.target.value));
   $('prevStep').addEventListener('click', () => goToStep(lesson.step - 1));
   $('nextStep').addEventListener('click', () => goToStep(lesson.step + 1));
@@ -2797,7 +2978,9 @@ img { max-width: 100%; }
     $('brandSub').textContent = `${n}×${n} practice cube`;
     for (const b of $('sizePick').children) b.setAttribute('aria-checked', +b.dataset.size === n);
     try { localStorage.setItem('deskcube-size', String(n)); } catch (e) {}
-    if (n !== 3) showTab('practice');
+    // The trainer is 3×3 only; the lesson switches to this size's steps.
+    if (n !== 3 && !$('panel-trainer').hidden) showTab('practice');
+    lessonSizeChanged();
     placeFaceLabels();
     renderControlRows();
     renderTurnSheet();
@@ -3116,6 +3299,240 @@ img { max-width: 100%; }
     const yc = centerColor(st, L.y);
     const wrong = homes.filter(c => stage === 3 ? st[slotOf(c, L.y)] !== yc : stage === 5 ? !fixedOrPlaced(st, c) : !pieceSolved(st, c));
     return wrong.map(c => ({ home: c, now: c }));
+  }
+
+  // ---------- Worked examples for the 2×2 and 4×4 lessons ----------
+  // A sticker model of any size, used to build examples and check that each part does what its caption
+  // says. Most examples are built backwards: start from the cube as it looks once the step is done,
+  // undo the step's moves, and deal the cube that leaves. Playing the moves forwards then always works.
+  const sims = {};
+  function sim(n) {
+    if (sims[n]) return sims[n];
+    const H = (n - 1) / 2, slots = [], index = new Map(), perms = new Map();
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) for (let k = 0; k < n; k++) {
+      const c = [i - H, j - H, k - H];
+      for (let a = 0; a < 3; a++) {
+        if (Math.abs(c[a]) !== H) continue;
+        const nv = [0, 0, 0]; nv[a] = Math.sign(c[a]);
+        index.set(kstr(c) + '|' + kstr(nv), slots.length);
+        slots.push({ c, n: nv });
+      }
+    }
+    const at = (c, nv) => index.get(kstr(c) + '|' + kstr(nv));
+    const solved = Uint8Array.from(slots, s => colorOf(s.n));
+    function perm(m) {
+      const q = ((Math.round(m.angle / (Math.PI / 2)) % 4) + 4) % 4;
+      const key = m.axis + m.layer + (m.wide ? 'w' : '') + ':' + q;
+      if (!perms.has(key)) {
+        const ai = AX.indexOf(m.axis);
+        perms.set(key, Uint16Array.from(slots, (s, i) => {
+          if (!turnsPiece(m, s.c[ai])) return i;
+          let c = s.c, nv = s.n;
+          for (let k = 0; k < q; k++) { c = ROT[m.axis](c); nv = ROT[m.axis](nv); }
+          return at(c, nv);
+        }));
+      }
+      return perms.get(key);
+    }
+    function apply(st, moves) {
+      let cur = st;
+      for (const m of moves) {
+        const p = perm(m), out = new Uint8Array(cur.length);
+        for (let i = 0; i < cur.length; i++) out[p[i]] = cur[i];
+        cur = out;
+      }
+      return cur;
+    }
+    // Center stickers of each face, and each edge's two halves (4×4), for counting.
+    const centers = new Map(), edgeBy = new Map();
+    slots.forEach((s, i) => {
+      const big = s.c.filter(v => Math.abs(v) === H).length;
+      if (big === 1) { if (!centers.has(kstr(s.n))) centers.set(kstr(s.n), []); centers.get(kstr(s.n)).push(i); }
+      if (big === 2 && n === 4) {
+        const key = kstr(s.c.map(v => Math.abs(v) === H ? v : 0)), half = s.c.find(v => Math.abs(v) !== H) > 0 ? 1 : 0;
+        if (!edgeBy.has(key)) edgeBy.set(key, [[], []]);
+        edgeBy.get(key)[half].push(i);
+      }
+    });
+    return (sims[n] = { n, H, at, solved, apply, centers, edges: [...edgeBy.values()] });
+  }
+  // The color a face has on a solved cube (white on top, green in front).
+  const colorOf = v => COLS.indexOf(FACES.find(f => kstr(f.n) === kstr(v)).c);
+  const SIDES = [[0, 0, 1], [1, 0, 0], [0, 0, -1], [-1, 0, 0]];
+  const W_UP = [0, 1, 0], Y_UP = [0, -1, 0];
+  const QUARTERS = ['', 'U', "U'", 'U2'];
+  const TRIG = "R' D' R D";
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const shuffled = a => a.map(v => [Math.random(), v]).sort((p, q) => p[0] - q[0]).map(p => p[1]);
+  const undone = moves => moves.slice().reverse().map(m => ({ ...m, angle: -m.angle }));
+  const movesIn = (fr, labels) => option(fr, labels.trim().replace(/\s+/g, ' ')).moves;
+  const repeat = (alg, k) => Array(k).fill(alg).join(' ');
+  const gripText = (top, fr) => `Hold ${top} on top, ${cname(colorOf(fr.front))} in front`;
+  // From a solved cube, `pre` makes the cube as it looks after the step; then the parts are undone.
+  const backwards = (pre, parts) => ({ setup: [...pre, ...undone(parts.flatMap(p => p.moves))], parts });
+
+  // 2×2: mix the bottom layer (yellow) and leave the white layer alone.
+  function bottomMix2() {
+    const out = [];
+    for (let i = 0; i < 3; i++) out.push(...movesIn(makeFrame(Y_UP, pick(SIDES)), pick(QUARTERS) + ' ' + pick(["R U R' U R U2 R'", "U R U' L' U R' U' L"])));
+    return out;
+  }
+  // 2×2 white layer: each corner goes up from under its spot with R' D' R D × 1, 3 or 5.
+  function gen2White() {
+    const S = sim(2), pre = bottomMix2(), Q = S.apply(S.solved, pre);
+    const parts = shuffled(SIDES).map(side => {
+      const fr = makeFrame(W_UP, side), d = pick(['', 'D', "D'", 'D2']), k = pick([1, 3, 5]);
+      const spot = add(fr.up, fr.front, cross3(fr.up, fr.front)).map(v => v / 2);
+      const cols = [fr.front, cross3(fr.up, fr.front)].map(v => cname(Q[S.at(spot, v)]));
+      return {
+        frame: fr, moves: movesIn(fr, `${d} ${repeat(TRIG, k)}`), grip: gripText('white', fr),
+        caption: `Put the white–${cols.join('–')} corner in: ` + (d ? `${d} brings it under its spot, then ` : '') + `R' D' R D × ${k}`,
+      };
+    });
+    return backwards(pre, parts);
+  }
+  function gen2Flip() {
+    return { setup: bottomMix2(), parts: [{ frame: null, moves: movesIn(makeFrame(W_UP, SIDES[0]), 'x2') }] };
+  }
+  // Twisting the last corners (2×2): one grip, U to bring each wrong corner to the front right, R' D' R D
+  // twice or four times on each. The twists add up to whole turns, so the bottom layer comes back.
+  function twistParts2() {
+    const fr = makeFrame(Y_UP, pick(SIDES)), grip = `Same grip the whole step: yellow on top, ${cname(colorOf(fr.front))} in front`;
+    const counts = pick([[2, 4], [4, 2], [2, 2, 2], [4, 4, 4]]), spots = shuffled([1, 2, 3]);
+    let at = 0;
+    const parts = counts.map((t, i) => {
+      const to = i ? spots[i - 1] : 0, u = ['', 'U', 'U2', "U'"][(to - at + 4) % 4];
+      at = to;
+      return { frame: fr, grip, moves: movesIn(fr, `${u} ${repeat(TRIG, t)}`), caption: (u ? 'Turn U to bring the next corner to the front right, then twist it' : 'Twist the front-right corner') + ` (R' D' R D × ${t})` };
+    });
+    if (at) parts.push({ frame: fr, grip, moves: movesIn(fr, ['', "U'", 'U2', 'U'][at]), caption: 'Turn the top layer to line everything up' });
+    return parts;
+  }
+  const gen2Twist = () => backwards([], twistParts2());
+  // 2×2: how many top corners are home, above the bottom-layer colors that match them (twists ignored).
+  function home2(S, st) {
+    let n = 0;
+    for (const x of [-0.5, 0.5]) for (const z of [-0.5, 0.5]) {
+      const top = [x, -0.5, z], low = [x, 0.5, z], sx = [Math.sign(x), 0, 0], sz = [0, 0, Math.sign(z)];
+      const want = [colorOf(Y_UP), st[S.at(low, sx)], st[S.at(low, sz)]].sort().join();
+      if ([st[S.at(top, sx)], st[S.at(top, sz)], st[S.at(top, Y_UP)]].sort().join() === want) n++;
+    }
+    return n;
+  }
+  function gen2Home() {
+    const S = sim(2), pre = undone(twistParts2().flatMap(p => p.moves));   // the cube as the twist step starts
+    const fr = makeFrame(Y_UP, pick(SIDES)), grip = gripText('yellow', fr), parts = [];
+    const u = pick(QUARTERS);
+    if (u) parts.push({ frame: fr, grip, moves: movesIn(fr, u), align: true });
+    for (let i = pick([1, 2]); i > 0; i--) parts.push({ frame: fr, grip, moves: movesIn(fr, "U R U' L' U R' U' L") });
+    const ex = backwards(pre, parts);
+    let st = S.apply(S.solved, ex.setup);
+    for (const p of parts) {
+      st = S.apply(st, p.moves);
+      p.caption = (p.align ? 'Turn U until exactly one corner is home' : 'Keep the front-right corner, move the other three') + ` (${home2(S, st)} of 4 home after)`;
+    }
+    return ex;
+  }
+
+  // 4×4 centers: each part swaps one piece into the top center, from the front with r U' r' (or U, U2
+  // in the middle), or from the bottom with r2 U r2, after lining it up with F or D and U.
+  const centerCount = (S, st, dir, col) => S.centers.get(kstr(dir)).filter(i => st[i] === col).length;
+  function centerPart(S, st, up, col, fronts, keep) {
+    const now = centerCount(S, st, up, col);
+    let best = null;
+    for (const front of fronts) {
+      const fr = makeFrame(up, front);
+      for (const [src, sets, ins] of [['front', ['', 'F', "F'", 'F2'], ["r U' r'", "r U r'", "r U2 r'"]], ['bottom', ['', 'D', "D'", 'D2'], ['r2 U r2', "r2 U' r2", 'r2 U2 r2']]]) {
+        for (const s1 of sets) for (const u of QUARTERS) for (const i of ins) {
+          const moves = movesIn(fr, `${s1} ${u} ${i}`);
+          if (best && moves.length >= best.moves.length) continue;
+          const after = S.apply(st, moves);
+          if (centerCount(S, after, up, col) <= now || keep.some(([d, c]) => centerCount(S, after, d, c) < 4)) continue;
+          best = { frame: fr, moves, src, after };
+        }
+      }
+    }
+    return best;
+  }
+  const perpendicular = (a, b) => SIDES.concat([W_UP, Y_UP]).filter(v => v[0] * a[0] + v[1] * a[1] + v[2] * a[2] === 0 && v[0] * b[0] + v[1] * b[1] + v[2] * b[2] === 0);
+  function gen4Centers(stage) {
+    const S = sim(4), fr0 = makeFrame(W_UP, SIDES[0]), setup = [];
+    for (let i = 0; i < 30; i++) setup.push(...movesIn(fr0, pick(['', '2']) + pick('UDFBRL') + pick(['', "'", '2'])));
+    let st = S.apply(S.solved, setup);
+    // The order: white on top, yellow, then one side, the opposite side, and the last two together.
+    const white = colorOf(W_UP), yellow = colorOf(Y_UP);
+    const s1 = SIDES.reduce((a, b) => centerCount(S, st, b, colorOf(b)) > centerCount(S, st, a, colorOf(a)) ? b : a);
+    const s3 = pick(perpendicular(s1, W_UP));
+    const keepWY = [[W_UP, white], [Y_UP, yellow]];
+    const plan = [
+      { stage: 0, up: W_UP, fronts: SIDES, keep: [] },
+      { stage: 1, up: Y_UP, fronts: SIDES, keep: [[W_UP, white]] },
+      { stage: 2, up: s1, fronts: perpendicular(s1, W_UP), keep: keepWY },
+      { stage: 2, up: neg(s1), fronts: perpendicular(s1, W_UP), keep: [...keepWY, [s1, colorOf(s1)]] },
+      { stage: 2, up: s3, fronts: [s1, neg(s1)], keep: [...keepWY, [s1, colorOf(s1)], [neg(s1), colorOf(neg(s1))]], last: true },
+    ].filter(p => p.stage <= stage);
+    const parts = [];
+    for (const p of plan) {
+      const col = colorOf(p.up);
+      for (let guard = 0; centerCount(S, st, p.up, col) < 4; guard++) {
+        const part = guard < 12 && centerPart(S, st, p.up, col, p.fronts, p.keep);
+        if (!part) return null;
+        st = part.after;
+        // Earlier stages are done quietly, as part of dealing the example.
+        if (p.stage < stage) { setup.push(...part.moves); continue; }
+        const n = centerCount(S, st, p.up, col), name = cname(col);
+        const side = kstr(cross3(part.frame.up, part.frame.front)) === kstr(W_UP) ? 'right' : 'left';
+        parts.push({
+          frame: part.frame, moves: part.moves,
+          grip: p.stage === 0 ? 'Hold white\'s center on top' : p.stage === 1 ? 'Hold yellow\'s center on top, white underneath' : `Hold ${name}\'s center on top, white on the ${side}`,
+          caption: `Bring a ${name} piece up from the ${part.src} (${n} of 4 on top)` + (p.last && n === 4 ? `. The ${cname(colorOf(neg(p.up)))} center underneath is done too` : ''),
+        });
+      }
+    }
+    return parts.length ? { setup, parts } : null;
+  }
+
+  // 4×4 edges: an edge is paired when both halves carry the same colors on the same faces.
+  const pairedEdges = (S, st) => S.edges.filter(([a, b]) => a.every((i, k) => st[i] === st[b[k]])).length;
+  function gen4Edges() {
+    const S = sim(4), fr0 = makeFrame(W_UP, SIDES[0]), pre = [];
+    // A reduced cube: centers done and edges paired, the rest mixed with outer turns (which keep pairs).
+    for (let i = 0; i < 20; i++) pre.push(...movesIn(fr0, pick('UDFBRL') + pick(['', "'", '2'])));
+    const ALG = "d R U R' F R' F' R d'";
+    let st = S.apply(S.solved, pre);
+    const parts = [];
+    // Built backwards one pairing at a time; each must set up two matching halves at the front left
+    // and front right (upper row, same color facing front) and pair at least two edges.
+    for (let n = 0, tries = 0; n < 3; tries++) {
+      if (tries > 60) return null;
+      const fr = makeFrame(W_UP, pick(SIDES)), r = cross3(fr.up, fr.front);
+      const set = movesIn(fr, [0, 1].map(() => pick('UDFBRL') + pick(['', "'", '2'])).join(' ')), alg = movesIn(fr, ALG);
+      const mid = S.apply(st, undone(alg)), before = S.apply(mid, undone(set));
+      const pos = c => fr.up.map((v, i) => v * 0.5 + fr.front[i] * 1.5 + r[i] * c);
+      const fl = pos(-1.5), frt = pos(1.5);
+      const lined = mid[S.at(fl, fr.front)] === mid[S.at(frt, fr.front)] && mid[S.at(fl, neg(r))] === mid[S.at(frt, r)];
+      if (!lined || pairedEdges(S, st) - pairedEdges(S, mid) < 2) continue;
+      const grip = gripText('white\'s center', fr);
+      parts.unshift({ frame: fr, grip, moves: set, caption: 'Put two matching halves at the front left and front right, upper row, same color in front' },
+        { frame: fr, grip, moves: alg, caption: `Pair them: d, flip the right edge, then d' (${pairedEdges(S, st)} of 12 paired)` });
+      st = before;
+      n++;
+    }
+    return { setup: [...pre, ...undone(parts.flatMap(p => p.moves))], parts };
+  }
+  // 4×4 last-layer cases: a flipped edge at the yellow cross, and two swapped edges at the end.
+  function gen4OllParity() {
+    const fr = makeFrame(Y_UP, pick(SIDES)), grip = gripText('yellow', fr), pre = [];
+    // The cube just after the fix: yellow cross done, the rest of the top mixed.
+    for (let i = 0; i < 3; i++) pre.push(...movesIn(fr, pick(QUARTERS) + ' ' + pick(["R U R' U R U2 R' U", "U R U' L' U R' U' L"])));
+    const u = pick(QUARTERS), parts = [];
+    if (u) parts.push({ frame: fr, grip, moves: movesIn(fr, u), caption: 'Turn U so the flipped edge is at the front, yellow facing you' });
+    parts.push({ frame: fr, grip, moves: movesIn(fr, "2R2 B2 U2 2L U2 2R' U2 2R U2 F2 2R F2 2L' B2 2R2"), caption: 'Flip it with the 4×4 edge flip. The yellow cross is done after' });
+    return backwards(pre, parts);
+  }
+  function gen4PllParity() {
+    const fr = makeFrame(Y_UP, pick(SIDES));
+    return backwards([], [{ frame: fr, grip: gripText('yellow', fr), moves: movesIn(fr, '2R2 U2 2R2 u2 2R2 u2 U2'), caption: 'Swap the front and back edges' }]);
   }
 
   // Pulsing highlight on the stickers of the piece a hint is about.
