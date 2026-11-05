@@ -415,10 +415,9 @@ img { max-width: 100%; }
 
   /* Learning / Speedcubing mode: speed mode hides every .learn-only element. */
   :root[data-mode="speed"] .learn-only { display: none !important; }
-  /* Cube size: the trainer, the daily challenge and competitions are 3×3 only; hints are 2×2 and 3×3. */
+  /* Cube size: the trainer, the daily challenge and competitions are 3×3 only. */
   :root[data-size="2"] .three-only, :root[data-size="4"] .three-only { display: none !important; }
   :root:not([data-size="4"]) .four-only { display: none !important; }
-  :root[data-size="4"] .no-four { display: none !important; }
   .size-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
   .size-row .size-label { color: var(--muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
   .size-row .mode-switch { grid-template-columns: repeat(3, 1fr); }
@@ -798,7 +797,7 @@ img { max-width: 100%; }
         <li title="Turn the whole cube left / right (y, y′)"><span class="kp-keys"><kbd>←</kbd><kbd>→</kbd></span><span>Turn</span></li>
         <li title="Tip the whole cube up / down (x, x′)"><span class="kp-keys"><kbd>↑</kbd><kbd>↓</kbd></span><span>Tip</span></li>
         <li title="Zoom in / out (or scroll); 0 resets"><span class="kp-keys"><kbd>+</kbd><kbd>−</kbd></span><span>Zoom</span></li>
-        <li class="learn-only no-four" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
+        <li class="learn-only" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
     </div>
   </nav>
   <dialog class="confirm" id="resetDialog" aria-labelledby="resetTitle">
@@ -1175,7 +1174,7 @@ img { max-width: 100%; }
 
     <p class="support" id="supportBox" hidden><span>Desk Cube is free with no ads.</span> <a class="tip-btn" id="kofiLink" target="_blank" rel="noopener">Leave a tip ☕</a></p>
 
-    <section class="coach learn-only no-four">
+    <section class="coach learn-only">
       <div class="coach-head">
         <h2>Solving steps</h2>
         <button id="hintBtn" class="primary" title="Show the next moves (H)">Hint <kbd>H</kbd></button>
@@ -3281,7 +3280,8 @@ img { max-width: 100%; }
     return null;
   }
 
-  function findHint(st) {
+  // noWide leaves out the f version of the yellow cross, whose two layers mean something else on a 4×4.
+  function findHint(st, noWide) {
     const L = layout(st), counts = stageCounts(st, L), stage = stageOf(counts);
     if (stage === 7) return { stage, counts, L, phases: [] };
     const trig = "R' D' R D", reps = k => Array(k).fill(trig).join(' ');
@@ -3298,7 +3298,7 @@ img { max-width: 100%; }
       phases = phaseSearch(st, opts, 2, s => { const c = stageCounts(s, L); return c[0] === 4 && c[1] === 4 && c[2] > counts[2]; });
     } else if (stage === 3) {
       // F R U R' U' F' turns a line into the cross; with the front two layers (f) it turns an L straight into the cross.
-      const opts = [...L.sides.map(s => option(makeFrame(L.y, s), "F R U R' U' F'")), ...L.sides.map(s => option(makeFrame(L.y, s), "f R U R' U' f'"))];
+      const opts = [...L.sides.map(s => option(makeFrame(L.y, s), "F R U R' U' F'")), ...(noWide ? [] : L.sides.map(s => option(makeFrame(L.y, s), "f R U R' U' f'")))];
       phases = phaseSearch(st, opts, 3, s => { const c = stageCounts(s, L); return keep(3)(s) && c[3] === 4; });
     } else if (stage === 4) {
       const opts = [...L.sides.map(s => option(makeFrame(L.y, s), "R U R' U R U2 R' U")), ...['U', "U'", 'U2'].map(u => option(makeFrame(L.y, L.sides[0]), u))];
@@ -3589,12 +3589,17 @@ img { max-width: 100%; }
   // With no centers, the cube can end up solved in any of 24 orientations. The hint picks the one the
   // white layer is closest to, then works out the step and searches for the next moves, as on the 3×3.
   const STAGES2 = [{ name: 'White layer', lesson: 1 }, { name: 'Yellow corners home', lesson: 3 }, { name: 'Twist yellow corners', lesson: 4 }];
-  const stageList = () => cube.n === 2 ? STAGES2 : STAGES;
+  const STAGES4 = [
+    { name: 'White center', lesson: 1 }, { name: 'Yellow center', lesson: 2 }, { name: 'Side centers', lesson: 3 }, { name: 'Pair the edges', lesson: 4, of: 12 },
+    { name: 'White cross', lesson: 5 }, { name: 'White corners', lesson: 5 }, { name: 'Middle layer', lesson: 5 }, { name: 'Yellow cross', lesson: 5 },
+    { name: 'Yellow edges', lesson: 5 }, { name: 'Yellow corners in place', lesson: 5 }, { name: 'Twist yellow corners', lesson: 5 },
+  ];
+  const stageList = () => cube.n === 2 ? STAGES2 : cube.n === 4 ? STAGES4 : STAGES;
   const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-  let orients2 = null;
-  function orientations2() {
-    if (orients2) return orients2;
-    const S = sim(2), fr = makeFrame(W_UP, SIDES[0]), turns = [movesIn(fr, 'x'), movesIn(fr, 'y')];
+  const orients = {};
+  function orientations(n) {
+    if (orients[n]) return orients[n];
+    const S = sim(n), fr = makeFrame(W_UP, SIDES[0]), turns = [movesIn(fr, 'x'), movesIn(fr, 'y')];
     const seen = new Map([[S.solved.join(), S.solved]]);
     for (let todo = [S.solved]; todo.length;) {
       const next = [];
@@ -3605,7 +3610,7 @@ img { max-width: 100%; }
       todo = next;
     }
     const white = colorOf(W_UP);
-    return (orients2 = [...seen.values()].map(T => ({ T, w: S.slots[T.indexOf(white)].n })));
+    return (orients[n] = [...seen.values()].map(T => ({ T, w: S.slots[T.indexOf(white)].n })));
   }
   // The cube on screen as stickers of the any-size model, with the mesh behind each one (for highlights).
   function readSim(S) {
@@ -3637,7 +3642,7 @@ img { max-width: 100%; }
   }
   function best2(S, st) {
     let best = null;
-    for (const o of orientations2()) {
+    for (const o of orientations(2)) {
       const r = status2(S, st, o), key = r.white * 100 + (r.white === 4 ? r.home * 10 + r.up : 0);
       if (!best || key > best.key) best = { o, r, key };
     }
@@ -3712,6 +3717,128 @@ img { max-width: 100%; }
     return { stage, phases, text, meshes: (glow || []).map(i => meshes[i]).filter(Boolean), counts: [r.white, r.home, r.up] };
   }
 
+  // ---------- 4×4 hints: the steps of the 4×4 lesson ----------
+  // Centers and edges are searched on the any-size model. Once they're done the cube is read as a 3×3,
+  // the 3×3 hint finds the moves, and those letters are played on the outer layers. The two 4×4-only
+  // cases show up as what the 3×3 can't do: an odd number of yellow edges up, or corners that can't be placed.
+  const FLIP_ALG = "2R2 B2 U2 2L U2 2R' U2 2R U2 F2 2R F2 2L' B2 2R2", SWAP_ALG = '2R2 U2 2R2 u2 2R2 u2 U2', PAIR_ALG = "d R U R' F R' F' R d'";
+  const to3 = c => c.map(v => Math.abs(v) === 1.5 ? Math.sign(v) : 0);
+  // The cube as a 3×3: each center's color, each edge from one of its halves.
+  function as3x3State(S, st) {
+    const out = new Uint8Array(54);
+    SLOTS.forEach((sl, i) => { out[i] = st[S.at(sl.c.map(v => v ? v * 1.5 : 0.5), sl.n)]; });
+    return out;
+  }
+  function as3x3(fn) {
+    const n = cube.n;
+    cube.n = 3;
+    try { return fn(); } finally { cube.n = n; }
+  }
+  // Which orientation the cube is heading for, the step it's on, and the count for each step.
+  function status4(S, st) {
+    let best = null;
+    const white = colorOf(W_UP), yellow = colorOf(Y_UP);
+    for (const o of orientations(4)) {
+      const w = centerCount(S, st, o.w, white), y = centerCount(S, st, neg(o.w), yellow);
+      const sides = SIDES.concat([W_UP, Y_UP]).filter(d => dot3(d, o.w) === 0), of = d => o.T[S.centers.get(kstr(d))[0]];
+      const counts = sides.map(d => centerCount(S, st, d, of(d))), done = counts.filter(c => c === 4).length;
+      const key = w * 1e6 + (w === 4 ? y * 1e5 + (y === 4 ? done * 1e3 + counts.reduce((a, b) => a + b, 0) : 0) : 0);
+      if (!best || key > best.key) best = { key, o, w, y, sides, of, done };
+    }
+    const { o, w, y, done } = best, k = pairedEdges(S, st);
+    const counts = [w, y, done, k];
+    let stage = w < 4 ? 0 : y < 4 ? 1 : done < 4 ? 2 : k < 12 ? 3 : -1, st3 = null;
+    if (stage === -1) {
+      st3 = as3x3State(S, st);
+      const c3 = stageCounts(st3, layout(st3)), s3 = stageOf(c3);
+      counts.push(...c3);
+      stage = s3 === 7 ? 99 : 4 + s3;
+    }
+    return { ...best, stage, counts, st3, k };
+  }
+  function centerHint4(S, st, b) {
+    const W = b.o.w, Y = neg(W), white = colorOf(W_UP), yellow = colorOf(Y_UP);
+    let part = null, up = W, col = white;
+    if (b.stage === 0) part = centerPart(S, st, W, white, b.sides, []);
+    else if (b.stage === 1) { up = Y; col = yellow; part = centerPart(S, st, Y, yellow, b.sides, [[W, white]]); }
+    else {
+      // Finish the center opposite a finished one first; the last two swap pieces between themselves.
+      const done = b.sides.filter(d => centerCount(S, st, d, b.of(d)) === 4), keep = [[W, white], [Y, yellow], ...done.map(d => [d, b.of(d)])];
+      const left = b.sides.filter(d => !done.includes(d)).sort((p, q) => (done.some(d => kstr(d) === kstr(neg(q))) - done.some(d => kstr(d) === kstr(neg(p)))) || (centerCount(S, st, q, b.of(q)) - centerCount(S, st, p, b.of(p))));
+      for (const d of left) {
+        part = centerPart(S, st, d, b.of(d), perpendicular(d, W), keep);
+        if (part) { up = d; col = b.of(d); break; }
+      }
+    }
+    if (!part) return null;
+    // The sticker to glow: the one that lands on top, found where it is now.
+    const trace = S.apply(Uint8Array.from(S.solved, (_, i) => i), part.moves);
+    const lands = S.centers.get(kstr(up)).find(i => part.after[i] === col && st[i] !== col);
+    const name = cname(col), side = kstr(cross3(part.frame.up, part.frame.front)) === kstr(W) ? 'right' : 'left';
+    const hold = b.stage === 0 ? 'Hold white\'s center on top' : b.stage === 1 ? 'Hold yellow\'s center on top, white underneath' : `Hold ${name}'s center on top, white on the ${side}`;
+    return { phases: [{ frame: part.frame, moves: part.moves, cap: '' }], glow: lands === undefined ? [] : [trace[lands]],
+      text: `The glowing ${name} piece goes on top, from the ${part.src}. ${hold}, then do the moves below.` };
+  }
+  function edgeHint4(S, st, b) {
+    const W = b.o.w, turns = [];
+    for (const f of 'UDFBRL') for (const t of ['', "'", '2']) turns.push(f + t);
+    // Shortest set-up first, looking for a pairing of two edges, then for one.
+    const seqs = [[[]]];
+    for (let d = 1; d <= 3; d++) seqs.push(seqs[d - 1].flatMap(q => turns.filter(t => !q.length || q[q.length - 1][0] !== t[0]).map(t => [...q, t])));
+    const tryFor = (gain, maxD) => {
+      for (let d = 0; d <= maxD; d++) for (const q of seqs[d]) for (const side of b.sides) {
+        const fr = makeFrame(W, side), set = movesIn(fr, q.join(' ')), alg = movesIn(fr, PAIR_ALG), after = S.apply(st, [...set, ...alg]);
+        if (pairedEdges(S, after) >= b.k + gain) return { fr, set, alg, after };
+      }
+      return null;
+    };
+    const r = tryFor(2, 2) || tryFor(1, 3);
+    if (!r) return null;
+    const trace = S.apply(Uint8Array.from(S.solved, (_, i) => i), [...r.set, ...r.alg]);
+    const isPaired = (x, [a, c]) => a.every((i, n) => x[i] === x[c[n]]);
+    const fresh = S.edges.filter(g => isPaired(r.after, g) && !isPaired(st, g));
+    const glow = fresh.flatMap(([a, c]) => [...a, ...c]).map(i => trace[i]);
+    const names = fresh.map(([a]) => a.map(i => cname(r.after[i])).join('–')).join(' and ');
+    const phases = [{ frame: r.fr, moves: r.alg, cap: 'Part 2: pair them with d, flip the right edge, then d\'' }];
+    if (r.set.length) phases.unshift({ frame: r.fr, moves: r.set, cap: 'Part 1: put matching halves at the front left and front right, upper row' });
+    return { phases, glow, text: `Next, the ${names} edge${fresh.length > 1 ? 's' : ''}: the halves are glowing. Hold white's center on top, ${cname(b.of(r.fr.front))} in front, then do the moves below.` };
+  }
+  // Move a 3×3 hint's turns onto the 4×4's outer layers, and its pieces onto the 4×4's.
+  function reducedHint4(S, st, b) {
+    const st3 = b.st3, L = layout(st3), s3 = b.stage - 4, yc = centerColor(st3, L.y);
+    const wings = c => S.pieces.filter(idx => kstr(to3(S.slots[idx[0]].c)) === kstr(c)).flat();
+    const special = (alg, lesson, front, glowAt, text) => {
+      const fr = makeFrame(L.y, front);
+      return { lesson, phases: [{ frame: fr, moves: movesIn(fr, alg), cap: '' }], glow: glowAt(fr).flatMap(wings),
+        text: `${text} Hold yellow on top, ${cname(centerColor(st3, front))} in front, then do the moves below.` };
+    };
+    // An odd number of yellow edges up can't happen on a 3×3: one edge is flipped.
+    if (s3 === 3 && b.counts[4 + 3] % 2) {
+      const front = L.sides.find(d => st3[slotOf(add(L.y, d), L.y)] !== yc);
+      return special(FLIP_ALG, 6, front, fr => [add(fr.up, fr.front)], 'One or three yellow edges up: that only happens on a 4×4, and it means one edge is flipped. The glowing edge is the one to flip.');
+    }
+    const h = as3x3(() => findHint(st3, true));
+    if (!h.phases && s3 >= 4) {
+      return special(SWAP_ALG, 7, L.sides[0], fr => [add(fr.up, fr.front), add(fr.up, neg(fr.front))], 'The last layer can\'t be finished from here with 3×3 moves: that only happens on a 4×4. Swap the two glowing edges, then carry on with the yellow edges.');
+    }
+    if (!h.phases) return null;
+    const targets = as3x3(() => hintTargets(st3, h));
+    const phases = h.phases.map((p, i) => ({ frame: p.frame, cap: `Part ${i + 1}: ${cname(centerColor(st3, p.frame.front))} in front`, moves: p.moves.map(m => ({ label: m.label, ...decode(m.label, p.frame, 4) })) }));
+    return { phases, glow: targets.flatMap(t => wings(t.now)), text: hintWords(st3, h, targets).replace(/^Step \d+, [^.]*\. /, '') };
+  }
+  function hint4Core(S, st) {
+    const b = status4(S, st), stage = b.stage;
+    if (stage === 99) return { stage, counts: b.counts, phases: [], glow: [], text: 'The cube is solved. Scramble it to go again.' };
+    const r = (stage < 3 ? centerHint4 : stage === 3 ? edgeHint4 : reducedHint4)(S, st, b);
+    const head = `Step ${stage + 1}, ${STAGES4[stage].name.toLowerCase()}.`;
+    if (!r) return { stage, counts: b.counts, phases: null, glow: [], text: `${head} I couldn't find a short hint from here. The lesson for this step explains what to look for.` };
+    return { stage, counts: b.counts, lesson: r.lesson, phases: r.phases, glow: r.glow, text: `${head} ${r.text}` };
+  }
+  function findHint4() {
+    const S = sim(4), { st, meshes } = readSim(S), h = hint4Core(S, st);
+    return { ...h, meshes: h.glow.map(i => meshes[i]).filter(Boolean) };
+  }
+
   // Pulsing highlight on the stickers of the piece a hint is about.
   var hiMats = {};
   for (const k in STICKER) { hiMats[k] = stickerMats[k].clone(); hiMats[k].emissive = new THREE.Color(0xffffff); }
@@ -3743,16 +3870,16 @@ img { max-width: 100%; }
   }
   buildStages();
   function renderStages() {
-    if (cube.n === 4) return;
     let counts, stage;
-    if (cube.n === 2) { const S = sim(2), r = best2(S, readSim(S).st).r; counts = [r.white, r.home, r.up]; stage = r.stage; }
+    if (cube.n === 4) { const S = sim(4), b = status4(S, readSim(S).st); counts = b.counts; stage = b.stage; }
+    else if (cube.n === 2) { const S = sim(2), r = best2(S, readSim(S).st).r; counts = [r.white, r.home, r.up]; stage = r.stage; }
     else { const st = readState(); counts = stageCounts(st, layout(st)); stage = stageOf(counts); }
     const list = stageList();
     [...$('stages').children].forEach((li, i) => {
       li.className = i < stage ? 'done' : i === stage ? 'now' : '';
-      li.querySelector('.st-count').textContent = i === stage ? `${counts[i]}/4` : '';
+      li.querySelector('.st-count').textContent = i === stage ? `${counts[i]}/${list[i].of || 4}` : '';
     });
-    $('stagesNote').textContent = stage === 7 ? 'Solved.' : `You're on step ${stage + 1}: ${list[stage].name.toLowerCase()}.`;
+    $('stagesNote').textContent = stage >= list.length ? 'Solved.' : `You're on step ${stage + 1}: ${list[stage].name.toLowerCase()}.`;
   }
 
   const hint = { result: null, flat: [], pos: 0, stale: false };
@@ -3762,9 +3889,9 @@ img { max-width: 100%; }
     return d > 0 ? 'top layer' : d < 0 ? 'bottom layer' : 'middle layer';
   }
   function getHint() {
-    if (isSpeed() || state.scrambling || anim || queue.length || cube.n === 4) return;
-    if (cube.n === 2) {
-      const h = findHint2();
+    if (isSpeed() || state.scrambling || anim || queue.length) return;
+    if (cube.n !== 3) {
+      const h = cube.n === 2 ? findHint2() : findHint4();
       hint.result = h; hint.pos = 0; hint.stale = false;
       hint.flat = (h.phases || []).flatMap((p, pi) => p.moves.map(m => ({ ...m, phase: pi })));
       setHighlight(h.meshes);
@@ -3780,7 +3907,11 @@ img { max-width: 100%; }
     const meshes = [];
     for (const t of targets) for (const i of pieceSlots.get(kstr(t.now))) if (slotMesh[i]) meshes.push(slotMesh[i]);
     setHighlight(meshes);
-    // Words for the hint.
+    $('hintText').textContent = hintWords(st, h, targets);
+    renderHint();
+  }
+  // Words for a 3×3 hint.
+  function hintWords(st, h, targets) {
     let text = '';
     if (h.stage === 7) text = 'The cube is solved. Scramble it to go again.';
     else if (!h.phases) text = `Step ${h.stage + 1}, ${STAGES[h.stage].name.toLowerCase()}: I couldn't find a short hint from here. The lesson for this step explains what to look for.`;
@@ -3798,8 +3929,7 @@ img { max-width: 100%; }
       }[h.stage] || '';
       text = `Step ${h.stage + 1}, ${STAGES[h.stage].name.toLowerCase()}. ${what} Hold ${top} on top and ${front} in front, then do the moves below.`;
     }
-    $('hintText').textContent = text;
-    renderHint();
+    return text;
   }
   function renderHint() {
     const h = hint.result;
@@ -3808,7 +3938,7 @@ img { max-width: 100%; }
     const has = hint.flat.length > 0 && !hint.stale;
     $('hintMoves').hidden = !has;
     $('hintActions').hidden = !has;
-    $('hintLessonBtn').hidden = h.stage === 7;
+    $('hintLessonBtn').hidden = h.stage >= stageList().length;
     if (hint.stale) $('hintText').textContent = 'The cube changed since this hint. Press Hint for a fresh one.';
     else if (has && hint.pos >= hint.flat.length) $('hintText').textContent = 'Done. Press Hint again for the next one.';
     const box = $('hintMoves');
@@ -3820,7 +3950,7 @@ img { max-width: 100%; }
       if (h.phases.length > 1) {
         const cap = document.createElement('div');
         cap.className = 'v-cap';
-        cap.textContent = cube.n === 2 ? p.cap : `Part ${pi + 1}: ${cname(centerColor(readState(), p.frame.front))} in front`;
+        cap.textContent = cube.n !== 3 ? p.cap : `Part ${pi + 1}: ${cname(centerColor(readState(), p.frame.front))} in front`;
         row.appendChild(cap);
       }
       const alg = document.createElement('div');
@@ -3899,8 +4029,8 @@ img { max-width: 100%; }
   $('hintNextBtn').addEventListener('click', () => playHint(false));
   $('hintPlayBtn').addEventListener('click', () => playHint(true));
   $('hintLessonBtn').addEventListener('click', () => {
-    if (!hint.result || hint.result.stage === 7) return;
-    goToStep(stageList()[hint.result.stage].lesson);
+    if (!hint.result || hint.result.stage >= stageList().length) return;
+    goToStep(hint.result.lesson !== undefined ? hint.result.lesson : stageList()[hint.result.stage].lesson);
     showTab('lesson');
   });
 
