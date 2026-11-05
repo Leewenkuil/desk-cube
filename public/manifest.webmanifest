@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Desk Cube",
   "short_name": "Desk Cube",
-  "description": "A free 3D puzzle cube: 2×2, 3×3 and 4×4, beginner lessons, a speed timer and shareable replays.",
+  "description": "A free 3D puzzle cube: 2×2 up to 5×5, beginner lessons, a speed timer and shareable replays.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

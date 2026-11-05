@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>Desk Cube – a free 3D puzzle cube, timer and lessons</title>
-<meta name="description" content="Turn a 3D puzzle cube in your browser: 2×2, 3×3 and 4×4, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.">
+<meta name="description" content="Turn a 3D puzzle cube in your browser: 2×2 up to 5×5, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.">
 <link rel="canonical" href="https://deskcube.app/">
 <meta name="theme-color" content="#f6f8f9" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#151d23" media="(prefers-color-scheme: dark)">
@@ -17,14 +17,14 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Desk Cube">
 <meta property="og:title" content="Desk Cube">
-<meta property="og:description" content="Turn a 3D puzzle cube in your browser: 2×2, 3×3 and 4×4, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.">
+<meta property="og:description" content="Turn a 3D puzzle cube in your browser: 2×2 up to 5×5, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.">
 <meta property="og:url" content="https://deskcube.app/">
 <meta property="og:image" content="https://deskcube.app/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="A solved 3×3 cube beside the words Desk Cube">
 <meta name="twitter:card" content="summary_large_image">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Desk Cube","url":"https://deskcube.app/","description":"Turn a 3D puzzle cube in your browser: 2×2, 3×3 and 4×4, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.","applicationCategory":"GameApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"GBP"}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Desk Cube","url":"https://deskcube.app/","description":"Turn a 3D puzzle cube in your browser: 2×2 up to 5×5, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.","applicationCategory":"GameApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"GBP"}}</script>
 <!-- Cloudflare Web Analytics: visitor counts without cookies. Only the real site has it, so the Claude preview isn't counted. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "1db7e9df27f34d1e9a63cfbecb6bc0c8"}'></script>
 <style>
@@ -416,11 +416,14 @@ img { max-width: 100%; }
   /* Learning / Speedcubing mode: speed mode hides every .learn-only element. */
   :root[data-mode="speed"] .learn-only { display: none !important; }
   /* Cube size: the trainer, the daily challenge and competitions are 3×3 only. */
-  :root[data-size="2"] .three-only, :root[data-size="4"] .three-only { display: none !important; }
-  :root:not([data-size="4"]) .four-only { display: none !important; }
+  :root[data-size="2"] .three-only, :root[data-size="4"] .three-only, :root[data-size="5"] .three-only { display: none !important; }
+  /* Inner and wide turns are for the 4×4 and 5×5; middle slices for odd cubes. The 5×5 has no lesson or hints yet. */
+  :root:not([data-size="4"]):not([data-size="5"]) .big-only { display: none !important; }
+  :root[data-size="2"] .odd-only, :root[data-size="4"] .odd-only { display: none !important; }
+  :root[data-size="5"] .no-five { display: none !important; }
   .size-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
   .size-row .size-label { color: var(--muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
-  .size-row .mode-switch { grid-template-columns: repeat(3, 1fr); }
+  .size-row .mode-switch { grid-template-columns: repeat(4, 1fr); }
   .size-row .mode-switch button { font-family: var(--font-mono); }
   .mode-switch { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
   .mode-switch button { border: 0; background: transparent; padding: 5px 12px; color: var(--muted); border-radius: 7px; }
@@ -711,7 +714,7 @@ img { max-width: 100%; }
         <button role="radio" id="modeSpeed" aria-checked="false" title="Hide all learning help">Solving</button>
       </div>
       <button class="learn-btn" id="keysBtn" aria-controls="keysPanel" title="Show or hide the controls (?)">Controls</button>
-      <button class="learn-btn learn-only" id="learnBtn">Learn to solve</button>
+      <button class="learn-btn learn-only no-five" id="learnBtn">Learn to solve</button>
       <button class="theme-switch" id="themeBtn" role="switch" aria-checked="false" title="Switch between light and dark">
         <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
         <span>Dark</span>
@@ -788,8 +791,8 @@ img { max-width: 100%; }
     <div class="kp-group">
       <h3>Other keys</h3>
       <ul class="kp-other">
-        <li class="four-only" title="Hold Space and press a face letter: that face and the layer inside it turn together"><span class="kp-keys"><kbd>Space</kbd>+<kbd>R</kbd></span><span>Wide</span></li>
-        <li class="four-only" title="Hold 2 and press a face letter: only the layer just inside that face turns"><span class="kp-keys"><kbd>2</kbd>+<kbd>R</kbd></span><span>Inner</span></li>
+        <li class="big-only" title="Hold Space and press a face letter: that face and the layer inside it turn together"><span class="kp-keys"><kbd>Space</kbd>+<kbd>R</kbd></span><span>Wide</span></li>
+        <li class="big-only" title="Hold 2 and press a face letter: only the layer just inside that face turns"><span class="kp-keys"><kbd>2</kbd>+<kbd>R</kbd></span><span>Inner</span></li>
         <li title="Tap Space during a timed solve to pause it; Enter resumes"><span class="kp-keys"><kbd>Space</kbd></span><span>Pause</span></li>
         <li title="Undo the last turn (also Ctrl+Z)"><span class="kp-keys"><kbd>⌫</kbd></span><span>Undo</span></li>
         <li title="Flip the cube upside down (x2)"><span class="kp-keys"><kbd>V</kbd></span><span>Flip</span></li>
@@ -797,7 +800,7 @@ img { max-width: 100%; }
         <li title="Turn the whole cube left / right (y, y′)"><span class="kp-keys"><kbd>←</kbd><kbd>→</kbd></span><span>Turn</span></li>
         <li title="Tip the whole cube up / down (x, x′)"><span class="kp-keys"><kbd>↑</kbd><kbd>↓</kbd></span><span>Tip</span></li>
         <li title="Zoom in / out (or scroll); 0 resets"><span class="kp-keys"><kbd>+</kbd><kbd>−</kbd></span><span>Zoom</span></li>
-        <li class="learn-only" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
+        <li class="learn-only no-five" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
     </div>
   </nav>
   <dialog class="confirm" id="resetDialog" aria-labelledby="resetTitle">
@@ -1050,9 +1053,10 @@ img { max-width: 100%; }
         <button role="radio" data-size="2" aria-checked="false" title="2×2: corners only">2×2</button>
         <button role="radio" data-size="3" aria-checked="true" title="3×3: the classic cube, with hints and the trainer">3×3</button>
         <button role="radio" data-size="4" aria-checked="false" title="4×4: wide turns move the outer two layers">4×4</button>
+        <button role="radio" data-size="5" aria-checked="false" title="5×5: wide, inner and middle layers">5×5</button>
       </div>
     </div>
-    <div class="tabs learn-only" role="tablist">
+    <div class="tabs learn-only no-five" role="tablist">
       <button role="tab" id="tab-practice" aria-selected="true" aria-controls="panel-practice">Practice</button>
       <button role="tab" id="tab-lesson" aria-selected="false" aria-controls="panel-lesson">Lesson</button>
       <button role="tab" id="tab-trainer" class="three-only" aria-selected="false" aria-controls="panel-trainer">Trainer</button>
@@ -1174,7 +1178,7 @@ img { max-width: 100%; }
 
     <p class="support" id="supportBox" hidden><span>Desk Cube is free with no ads.</span> <a class="tip-btn" id="kofiLink" target="_blank" rel="noopener">Leave a tip ☕</a></p>
 
-    <section class="coach learn-only">
+    <section class="coach learn-only no-five">
       <div class="coach-head">
         <h2>Solving steps</h2>
         <button id="hintBtn" class="primary" title="Show the next moves (H)">Hint <kbd>H</kbd></button>
@@ -1230,7 +1234,7 @@ img { max-width: 100%; }
   // Cube size: 2, 3 or 4. Pieces sit at whole-number coordinates on odd cubes and at halves on
   // even ones (±0.5, ±1.5), so the outer layers are always at ±(n − 1) / 2.
   const cube = { n: 3 };
-  try { const n = +localStorage.getItem('deskcube-size'); if (n === 2 || n === 4) cube.n = n; } catch (e) {}
+  try { const n = +localStorage.getItem('deskcube-size'); if (n === 2 || n === 4 || n === 5) cube.n = n; } catch (e) {}
   document.documentElement.dataset.size = cube.n;
   const half = () => (cube.n - 1) / 2;
   const snapC = v => cube.n % 2 ? Math.round(v) : Math.floor(v) + 0.5;
@@ -1465,14 +1469,14 @@ img { max-width: 100%; }
     M: ['L', 0], E: ['D', 0], S: ['F', 0], x: ['R', null], y: ['U', null], z: ['F', null],
     u: ['U', 'wide'], d: ['D', 'wide'], r: ['R', 'wide'], l: ['L', 'wide'], f: ['F', 'wide'], b: ['B', 'wide'],
   };
-  // On the 4×4, "2R" is the inner layer next to R on its own. Middle slices (M E S) exist only on
-  // the 3×3 and wide turns only from the 3×3 up; those come back null on the other sizes.
+  // On the 4×4 and 5×5, "2R" is the inner layer next to R on its own. Middle slices (M E S) exist only on
+  // odd cubes and wide turns only from the 3×3 up; those come back null on the other sizes.
   function decode(m, fr, n = cube.n) {
-    const inner = n === 4 && m[0] === '2';
+    const inner = n >= 4 && m[0] === '2';
     if (inner) m = m.slice(1);
     if (!LETTERS[m[0]]) return null;
     const [faceKey, layer] = LETTERS[m[0]];
-    if ((n !== 3 && layer === 0) || (n === 2 && layer === 'wide') || (inner && layer !== 'face')) return null;
+    if ((n % 2 === 0 && layer === 0) || (n === 2 && layer === 'wide') || (inner && layer !== 'face')) return null;
     const face = fr[faceKey], H = (n - 1) / 2;
     const turns = m[1] === "'" ? -1 : m[1] === '2' ? 2 : 1;
     const out = { axis: face.axis, layer: layer === 'face' || layer === 'wide' ? face.sign * (inner ? H - 1 : H) : layer, angle: -face.sign * turns * Math.PI / 2 };
@@ -1486,7 +1490,7 @@ img { max-width: 100%; }
       if (face.axis !== axis) continue;
       const turn = sign === -face.sign ? k : k + "'";
       if ((l === 'face' || l === 'wide' ? face.sign * H : l) === layer) return turn;
-      if (l === 'face' && cube.n === 4 && layer === face.sign * (H - 1)) return '2' + turn;
+      if (l === 'face' && cube.n >= 4 && layer === face.sign * (H - 1)) return '2' + turn;
     }
   }
   // Does a turn move the piece at this coordinate (along the turn's axis)? A wide turn also takes
@@ -1816,11 +1820,11 @@ img { max-width: 100%; }
     renderPanel();
   }
 
-  // Face turns (11 on the 2×2, 22 on the 3×3, 40 on the 4×4, where wide u, r and f join in), never
+  // Face turns (11 on the 2×2, 22 on the 3×3, 40 on the 4×4 with wide u, r and f, 60 on the 5×5 with all six wide), never
   // the same turn twice in a row or three on one axis. `rand` can be seeded (daily challenge).
   function scrambleSeq(rand = Math.random, n = cube.n) {
-    const axisOf = { U: 'y', D: 'y', R: 'x', L: 'x', F: 'z', B: 'z', u: 'y', r: 'x', f: 'z' };
-    const faces = n === 4 ? 'UDRLFBurf' : 'UDRLFB', seq = [], len = { 2: 11, 3: 22, 4: 40 }[n];
+    const axisOf = { U: 'y', D: 'y', R: 'x', L: 'x', F: 'z', B: 'z', u: 'y', d: 'y', r: 'x', l: 'x', f: 'z', b: 'z' };
+    const faces = n === 5 ? 'UDRLFBudrlfb' : n === 4 ? 'UDRLFBurf' : 'UDRLFB', seq = [], len = { 2: 11, 3: 22, 4: 40, 5: 60 }[n];
     let lastAxis = null, prevFace = null;
     while (seq.length < len) {
       const f = faces[Math.floor(rand() * faces.length)];
@@ -2303,7 +2307,7 @@ img { max-width: 100%; }
     },
   ];
   const LESSONS = { 2: LESSON2, 3: LESSON, 4: LESSON4 };
-  function steps() { return LESSONS[cube.n]; }
+  function steps() { return LESSONS[cube.n] || LESSON; }
   const EXAMPLE_NOTE = 'The example starts from a new scramble with the earlier steps already done. Press <b>Play</b> to watch this step solved part by part, or <b>Next move</b> to go one turn at a time. <b>New example</b> deals a different cube.';
 
   // Each size remembers its own step.
@@ -2580,7 +2584,7 @@ img { max-width: 100%; }
     showTab('lesson');
     if (window.matchMedia('(max-width: 780px)').matches) $('rail').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
   });
-  try { if (localStorage.getItem('deskcube-tab') === 'lesson') showTab('lesson'); } catch (e) {}
+  try { if (localStorage.getItem('deskcube-tab') === 'lesson' && cube.n !== 5) showTab('lesson'); } catch (e) {}
   renderLesson();
 
   // ---------- Controls panel ----------
@@ -2642,8 +2646,15 @@ img { max-width: 100%; }
     ...'UDLRFB'.split('').map(F => ['kpInner', '2' + F, `Only the inner layer just inside ${F} (turns like ${F})`]),
     ...KEY_INFO.filter(r => r[0] === 'kpWhole'),
   ];
+  // The 5×5 has those and the middle slices.
+  const KEY_INFO_5 = [
+    ...KEY_INFO.filter(r => r[0] === 'kpFaces'),
+    ...KEY_INFO.filter(r => r[0] === 'kpSlices' && r[1] !== 'f'),
+    ...KEY_INFO_4.filter(r => r[0] === 'kpWide' || r[0] === 'kpInner'),
+    ...KEY_INFO.filter(r => r[0] === 'kpWhole'),
+  ];
   // Letters layout: each turn's key is its letter (the wide front turn f is also on W). Holding Space
-  // makes a face turn wide, and on the 4×4 holding 2 turns just the inner layer.
+  // makes a face turn wide, and on the 4×4 and 5×5 holding 2 turns just the inner layer.
   const letterKey = m => m[0] === 'f' ? 'W' : m[0].toUpperCase();
   // Short names for the compact rows; the full name is the row's tooltip.
   const SHORT_NAME = {
@@ -2663,6 +2674,7 @@ img { max-width: 100%; }
     2: [['MoYu RS2M', 'Budget', 'Cheap, smooth and magnetic: a great first 2×2'], ['GAN 251 M', 'Step up', 'Light and fast, with adjustable magnets']],
     3: [['MoYu RS3M V5', 'Budget', 'The usual first speed cube: magnetic and reliable'], ['GAN 14 MagLev', 'Step up', 'A top-level cube used by competitive solvers']],
     4: [['MoYu RS4M', 'Budget', 'Stable and easy to turn for a first 4×4'], ['GAN 460 M', 'Step up', 'Smooth, magnetic and good for fast solves']],
+    5: [['YJ MGC 5x5', 'Budget', 'An affordable magnetic 5×5 that turns well'], ['GAN 562 M', 'Step up', 'Light and stable for fast solves']],
   };
   function renderShop() {
     const tag = SUPPORT.amazonTag.trim();
@@ -2708,6 +2720,7 @@ img { max-width: 100%; }
     2: [['Faces', 'UDLRFB'], ['Whole cube', 'xyz']],
     3: [['Faces', 'UDLRFB'], ['Middle', 'MES'], ['Whole cube', 'xyz']],
     4: [['Faces', 'UDLRFB'], ['Wide', 'udlrfb'], ['Inner', ['2U', '2D', '2L', '2R', '2F', '2B']], ['Whole cube', 'xyz']],
+    5: [['Faces', 'UDLRFB'], ['Wide', 'udlrfb'], ['Inner', ['2U', '2D', '2L', '2R', '2F', '2B']], ['Middle', 'MES'], ['Whole cube', 'xyz']],
   };
   let turnSet = 0;
   function renderTurnSheet() {
@@ -2731,11 +2744,11 @@ img { max-width: 100%; }
   // Rebuilt when the cube size changes: the pictures show that size, and only its turns are listed.
   function renderControlRows() {
     for (const id of ['kpFaces', 'kpSlices', 'kpWide', 'kpInner', 'kpWhole']) $(id).innerHTML = '';
-    if (cube.n === 4) {
+    if (cube.n >= 4) {
       $('kpWide').innerHTML = '<div class="kp-sub">Wide <span>· outer two layers · hold Space</span></div>';
       $('kpInner').innerHTML = '<div class="kp-sub">Inner layers <span>· hold 2</span></div>';
     }
-    const rows = cube.n === 4 ? KEY_INFO_4 : cube.n === 2 ? KEY_INFO.filter(r => r[0] !== 'kpSlices') : KEY_INFO;
+    const rows = cube.n === 5 ? KEY_INFO_5 : cube.n === 4 ? KEY_INFO_4 : cube.n === 2 ? KEY_INFO.filter(r => r[0] !== 'kpSlices') : KEY_INFO;
     for (const [group, k, name] of rows) {
     const row = document.createElement('div');
     row.className = 'kp-row';
@@ -2981,10 +2994,11 @@ img { max-width: 100%; }
   }
   scene.add(faceLabels);
   // Even cubes have no centre sticker, just a crossing of gaps, so their label is bigger to stand out.
+  // The 5×5's stickers look small, so its label overlaps the stickers around the center to stay readable.
   function placeFaceLabels() {
     for (const m of faceLabels.children) {
       m.position.copy(m.userData.dir).multiplyScalar(half() + 0.497);
-      m.scale.setScalar(cube.n % 2 ? 1 : 1.6);
+      m.scale.setScalar(cube.n === 3 ? 1 : 1.6);
     }
   }
   placeFaceLabels();
@@ -3025,7 +3039,7 @@ img { max-width: 100%; }
     for (const b of $('sizePick').children) b.setAttribute('aria-checked', +b.dataset.size === n);
     try { localStorage.setItem('deskcube-size', String(n)); } catch (e) {}
     // The trainer is 3×3 only; the lesson switches to this size's steps.
-    if (n !== 3 && !$('panel-trainer').hidden) showTab('practice');
+    if ((n !== 3 && !$('panel-trainer').hidden) || (n === 5 && !$('panel-lesson').hidden)) showTab('practice');
     lessonSizeChanged();
     buildStages();
     placeFaceLabels();
@@ -3074,8 +3088,8 @@ img { max-width: 100%; }
     for (const s of stickers) {
       s.parent.getWorldPosition(v);
       const rx = Math.round(v.x), ry = Math.round(v.y), rz = Math.round(v.z);
-      if (Math.abs(rx) + Math.abs(ry) + Math.abs(rz) !== 1) continue;   // centers only
-      for (const el of faceEls[`${rx},${ry},${rz}`] || []) el.style.background = CSS_COLOR[s.userData.color];
+      if (Math.abs(rx) + Math.abs(ry) + Math.abs(rz) !== half()) continue;   // centers only
+      for (const el of faceEls[`${Math.sign(rx)},${Math.sign(ry)},${Math.sign(rz)}`] || []) el.style.background = CSS_COLOR[s.userData.color];
     }
   }
 
@@ -3870,6 +3884,7 @@ img { max-width: 100%; }
   }
   buildStages();
   function renderStages() {
+    if (cube.n === 5) return;
     let counts, stage;
     if (cube.n === 4) { const S = sim(4), b = status4(S, readSim(S).st); counts = b.counts; stage = b.stage; }
     else if (cube.n === 2) { const S = sim(2), r = best2(S, readSim(S).st).r; counts = [r.white, r.home, r.up]; stage = r.stage; }
@@ -3889,7 +3904,7 @@ img { max-width: 100%; }
     return d > 0 ? 'top layer' : d < 0 ? 'bottom layer' : 'middle layer';
   }
   function getHint() {
-    if (isSpeed() || state.scrambling || anim || queue.length) return;
+    if (isSpeed() || state.scrambling || anim || queue.length || cube.n === 5) return;
     if (cube.n !== 3) {
       const h = cube.n === 2 ? findHint2() : findHint4();
       hint.result = h; hint.pos = 0; hint.stale = false;
@@ -4219,15 +4234,15 @@ img { max-width: 100%; }
   $('trSolutionBtn').addEventListener('click', showTrainerSolution);
   $('trLessonBtn').addEventListener('click', () => { goToStep(STAGES[trainer.stage].lesson); showTab('lesson'); });
   renderTrainer();
-  try { if (localStorage.getItem('deskcube-tab') === 'trainer' && !isSpeed()) showTab('trainer'); } catch (e) {}
+  try { if (localStorage.getItem('deskcube-tab') === 'trainer' && !isSpeed() && cube.n === 3) showTab('trainer'); } catch (e) {}
 
   // ---------- Buttons & keyboard ----------
   const pad = $('pad');
   for (const k of ['U', 'D', 'L', 'R', 'F', 'B', 'u', 'd', 'l', 'r', 'f', 'b', '2U', '2D', '2L', '2R', '2F', '2B', 'M', 'E', 'S', 'x', 'y', 'z']) {
     for (const m of [k, k + "'"]) {
       const b = document.createElement('button');
-      if ('MES'.includes(k)) b.className = 'three-only';
-      if ('udlrfb'.includes(k) || k[0] === '2') b.className = 'four-only';
+      if ('MES'.includes(k)) b.className = 'odd-only';
+      if ('udlrfb'.includes(k) || k[0] === '2') b.className = 'big-only';
       b.textContent = m;
       b.id = 'pad-' + k + (m.length > 1 ? 'p' : '');
       b.title = k[0] === '2' ? `Turn only the inner layer next to ${k[1]}` : LETTERS[k][1] === null ? 'Rotate the whole cube' : LETTERS[k][1] === 'wide' ? `Turn the outer two layers (${m[0].toUpperCase()}w${m.slice(1)})` : 'Turn ' + m;
@@ -4311,7 +4326,7 @@ img { max-width: 100%; }
   $('pbUndo').addEventListener('click', () => $('undoBtn').click());
   syncPhoneBar();
 
-  // Keys held down as modifiers: Space (wide turns) and 2 (inner layers on the 4×4).
+  // Keys held down as modifiers: Space (wide turns) and 2 (inner layers on the 4×4 and 5×5).
   // A quick tap of Space pauses a timed solve instead: it pauses on release if no turn was made while held.
   const held = new Set();
   let spaceTurned = false;
@@ -4324,7 +4339,7 @@ img { max-width: 100%; }
   // A face turn becomes wide while Space is held, or the inner layer while 2 is held.
   function withHeld(m) {
     if (!/^[UDLRFB]'?$/.test(m)) return m;
-    if (held.has('Digit2') && cube.n === 4) return '2' + m;
+    if (held.has('Digit2') && cube.n >= 4) return '2' + m;
     if (held.has('Space')) { spaceTurned = true; return m[0].toLowerCase() + m.slice(1); }
     return m;
   }
@@ -4390,7 +4405,7 @@ img { max-width: 100%; }
   var lastReplay = null;
   function encodeTurn(m, t) {
     const q = ((Math.round(m.angle / (Math.PI / 2)) % 4) + 4) % 4;
-    // Layers: + and - are the outer ones, 0 the 3×3 middle, a and b the 4×4 inner ones.
+    // Layers: + and - are the outer ones, 0 the middle on odd cubes, a and b the inner ones on the 4×4 and 5×5.
     const H = half();
     const layer = m.layer === null ? '*' : m.layer === H ? '+' : m.layer === -H ? '-' : m.layer === 0 ? '0' : m.layer > 0 ? 'a' : 'b';
     return `${m.axis}${layer}${m.wide ? 'w' : ''}${q}@${Math.round(t / 10)}`;
@@ -4550,7 +4565,7 @@ img { max-width: 100%; }
     history.replaceState(null, '', location.pathname + location.search);
     let d = null;
     try { d = JSON.parse(unb64u(m[1])); } catch (e) {}
-    const ok = d && [2, 3, 4].includes(d.n) && typeof d.s === 'string' && typeof d.r === 'string' && d.t >= 0;
+    const ok = d && [2, 3, 4, 5].includes(d.n) && typeof d.s === 'string' && typeof d.r === 'string' && d.t >= 0;
     if (!ok) { setStatus('That replay link is damaged, so it can\'t be played. Ask for the link again.'); return; }
     const by = typeof d.by === 'string' ? d.by.slice(0, 40) : '';
     const title = `${by ? by + '\'s' : 'A shared'} ${d.n}×${d.n} solve: ${fmt(d.t)}`;
@@ -5275,7 +5290,7 @@ img { max-width: 100%; }
     if (s.sound && typeof s.sound.on === 'boolean') setSound(s.sound.on, s.sound.vol, true);
     if (s.stickers && SCHEMES[s.stickers.scheme]) setLook(s.stickers.scheme, s.stickers.letters, true);
     if (s.stickers && typeof s.stickers.faces === 'boolean') setFaces(s.stickers.faces, true);
-    if (s.size === 2 || s.size === 3 || s.size === 4) setSize(s.size, true);
+    if ([2, 3, 4, 5].includes(s.size)) setSize(s.size, true);
     if (typeof s.competition === 'boolean' && s.competition !== comp.on && !compSolving()) setComp(s.competition);
     // A solve paused on another computer opens here, paused, unless one is already going in this browser.
     const busy = paused || state.mode === 'running' || state.mode === 'ready';
@@ -5402,7 +5417,7 @@ img { max-width: 100%; }
       ['Solves', n(d.solves)], ['Solves today', n(d.solves_today)], ['Solves this week', n(d.solves_7d)],
       ['Daily today', n(d.daily_today)], ['Competition rounds', n(d.rounds)], ['On leaderboard', n(d.on_leaderboard)],
     ];
-    $('adminSizes').textContent = 'All solves by cube size: ' + [3, 2, 4].map(k => `${k}×${k} ${n(sizes[k])}`).join(' · ');
+    $('adminSizes').textContent = 'All solves by cube size: ' + [3, 2, 4, 5].map(k => `${k}×${k} ${n(sizes[k])}`).join(' · ');
     const box = $('adminTiles');
     box.innerHTML = '';
     for (const [label, value] of tiles) {
