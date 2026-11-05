@@ -184,7 +184,6 @@ img { max-width: 100%; }
   .comp-times li.dropped { opacity: 0.55; }
   .comp-result { margin: 0; font-weight: 600; }
   .daily { display: flex; flex-direction: column; gap: 8px; }
-  .daily-num { color: var(--accent); margin-left: 4px; }
   .daily-next { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
   .daily-result { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
   .daily-result.dnf { color: var(--danger); }
@@ -442,8 +441,13 @@ img { max-width: 100%; }
   .shop-tier { grid-row: span 2; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
   .shop-why { font-size: 0.8rem; color: var(--muted); }
   .shop-note { margin: 8px 0 0; font-size: 0.75rem; color: var(--muted); }
-  .support { margin: 0; font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
-  .support a { color: var(--accent); font-weight: 600; }
+  .support { margin: 0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 0.85rem; color: var(--muted); line-height: 1.4; }
+  .tip-btn { display: inline-block; padding: 6px 12px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 0.85rem; text-decoration: none; white-space: nowrap; }
+  .tip-btn:hover { filter: brightness(1.08); }
+  .tip-note { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); font-size: 0.9rem; line-height: 1.4; }
+  .tip-note p { margin: 0; }
+  .tip-note-actions { display: flex; align-items: center; gap: 8px; }
+  .tip-note-actions button { padding: 6px 12px; }
   .coach-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .coach-head h2 { margin: 0; }
   .coach-head button { padding: 6px 12px; display: flex; align-items: center; gap: 6px; }
@@ -1055,6 +1059,14 @@ img { max-width: 100%; }
       <button role="tab" id="tab-trainer" class="three-only" aria-selected="false" aria-controls="panel-trainer">Trainer</button>
     </div>
 
+    <div class="tip-note" id="tipNote" hidden>
+      <p>Enjoying Desk Cube? It's free with no ads, and tips help keep it that way.</p>
+      <div class="tip-note-actions">
+        <a class="tip-btn" id="tipNoteLink" target="_blank" rel="noopener">Leave a tip ☕</a>
+        <button id="tipNoteClose">Not now</button>
+      </div>
+    </div>
+
     <div class="panel" id="panel-lesson" role="tabpanel" hidden>
       <div class="lesson-top">
         <span class="label" id="lessonCount">Step 1 of 10</span>
@@ -1138,7 +1150,7 @@ img { max-width: 100%; }
 
     <section class="daily three-only" id="dailyBox">
       <div class="coach-head">
-        <h2>Daily challenge <span class="daily-num" id="dailyNum"></span></h2>
+        <h2>Daily challenge</h2>
         <span class="daily-next" id="dailyNext"></span>
       </div>
       <p class="comp-note" id="dailyNote">The same scramble for everyone today. One try: 15 seconds to look, then the timer starts. No undo, hints or pausing, and leaving the page counts as a DNF.</p>
@@ -1160,6 +1172,8 @@ img { max-width: 100%; }
       <p class="comp-result" id="compResult" hidden></p>
       <button id="compExitBtn" hidden>Exit competition</button>
     </section>
+
+    <p class="support" id="supportBox" hidden><span>Desk Cube is free with no ads.</span> <a class="tip-btn" id="kofiLink" target="_blank" rel="noopener">Leave a tip ☕</a></p>
 
     <section class="coach learn-only no-four">
       <div class="coach-head">
@@ -1203,7 +1217,6 @@ img { max-width: 100%; }
       <ul class="shop-list" id="shopList"></ul>
       <p class="shop-note">As an Amazon Associate, Desk Cube earns from qualifying purchases.</p>
     </section>
-    <p class="support" id="supportBox" hidden>Desk Cube is free with no ads. <a id="kofiLink" target="_blank" rel="noopener">Support it with a tip ☕</a></p>
   </aside>
 </div>
 
@@ -1752,6 +1765,7 @@ img { max-width: 100%; }
         const s = steps()[lesson.step];
         setLessonStatus(s.done || 'Those are all the moves for this example.', !!s.done);
         if (s.done) playChime('step');
+        if (s.done && s.done.startsWith('Solved!')) showTipNote();
       }
       renderLesson();
     } else {
@@ -1762,8 +1776,12 @@ img { max-width: 100%; }
     if (item.undo) state.history.pop(); else state.history.push(item);
     trainerOnMove(item);
     if ((state.mode === 'ready' || state.mode === 'inspect') && !whole) startTimer(performance.now());
-    if (!queue.length && state.mode === 'running' && isSolved()) {
-      const t = performance.now() - state.start;
+    if (state.mode === 'running' && isSolved()) {
+      // The clock stops when the solving turn was made, like it starts, not when its animation ends.
+      // Turns typed after it are dropped, so the cube stays solved.
+      const t = Math.max(1, (item.madeAt || item.at || performance.now()) - state.start);
+      queue = queue.filter(q => q.layer === null);
+      renderStages();
       state.mode = 'solved';
       renderTime(t);
       state.solves++;
@@ -1774,6 +1792,7 @@ img { max-width: 100%; }
       const replayText = (state.rec || []).join(' ');
       lastReplay = { scramble: state.scrambleText, replay: replayText, time: t, size: cube.n };
       setStatus(`Solved in ${fmt(t)} with ${state.moves} moves.${pb ? ' New best!' : ''}`, true);
+      if (!compActive()) showTipNote();
       if (dailyOn()) dailySolveDone(t, false, replayText);
       else if (compActive() && comp.roundId) compSolveDone(t, false, replayText);
       else accountOnSolve(t, { replay: replayText });
@@ -1793,6 +1812,7 @@ img { max-width: 100%; }
   function startTimer(now) {
     state.mode = 'running';
     state.start = now;
+    hideTipNote();
     setStatus('Solving…');
     renderPanel();
   }
@@ -1994,7 +2014,7 @@ img { max-width: 100%; }
     let item = null;
     if (q && !state.scrambling && state.mode !== 'replay' && state.mode !== 'paused') {
       const quarter = labelFor(L.axis, L.layer, Math.sign(q), viewFrame());
-      item = { label: Math.abs(q) === 2 ? quarter.replace("'", '') + '2' : quarter, axis: L.axis, layer: L.layer, angle: q * Q, user: true, at: L.at };
+      item = { label: Math.abs(q) === 2 ? quarter.replace("'", '') + '2' : quarter, axis: L.axis, layer: L.layer, angle: q * Q, user: true, at: L.at, madeAt: performance.now() };
       if (state.mode === 'ready' || state.mode === 'inspect') startTimer(L.at);
       playClick(false);
     }
@@ -2664,10 +2684,25 @@ img { max-width: 100%; }
         $('shopList').appendChild(li);
       }
     }
-    const kofi = /^https:\/\/ko-fi\.com\/\w+\/?$/.test(SUPPORT.kofi) ? SUPPORT.kofi : '';
+    const kofi = kofiLink();
     $('supportBox').hidden = !kofi;
     if (kofi) $('kofiLink').href = kofi;
   }
+  function kofiLink() { return /^https:\/\/ko-fi\.com\/\w+\/?$/.test(SUPPORT.kofi) ? SUPPORT.kofi : ''; }
+  // A friendly note after someone's first solve or finished lesson, once per browser.
+  const TIP_NOTE_KEY = 'deskcube-tipnote';
+  function showTipNote() {
+    if (!kofiLink()) return;
+    try {
+      if (localStorage.getItem(TIP_NOTE_KEY)) return;
+      localStorage.setItem(TIP_NOTE_KEY, '1');
+    } catch (e) { return; }
+    $('tipNoteLink').href = kofiLink();
+    $('tipNote').hidden = false;
+  }
+  const hideTipNote = () => { $('tipNote').hidden = true; };
+  $('tipNoteClose').addEventListener('click', hideTipNote);
+  $('tipNoteLink').addEventListener('click', hideTipNote);
 
   // Phones: tap-to-turn buttons in the bar under the cube, one set at a time, clockwise above anticlockwise.
   const TURN_SETS = {
@@ -4552,7 +4587,7 @@ img { max-width: 100%; }
     }
     const mid = state.mode === 'running' || state.mode === 'inspect';
     askConfirm({
-      title: `Start daily challenge #${dailyNumber(day)}?`, ok: 'Start',
+      title: 'Start today\'s daily challenge?', ok: 'Start',
       text: (mid ? 'Your current solve ends and isn\'t recorded. ' : '')
         + 'You get one try today. The scramble appears straight away, then 15 seconds to look before the timer starts.',
     }, () => {
@@ -4564,7 +4599,7 @@ img { max-width: 100%; }
       daily.local = { day, started: true, uid: acct && acct.user ? acct.user.id : null };
       storeDaily();
       scramble(dailySeq(day));
-      setStatus(`Daily challenge #${dailyNumber(day)}: scrambling…`);
+      setStatus('Daily challenge: scrambling…');
     });
   }
   function dailySolveDone(t, dnf, replayText) {
@@ -4572,7 +4607,7 @@ img { max-width: 100%; }
     daily.active = false;
     daily.local = { ...daily.local, day, result: { time: Math.round(t), dnf, moves: state.moves }, synced: false };
     storeDaily();
-    setStatus(`Daily challenge #${dailyNumber(day)}: ` + (dnf ? 'DNF. A new scramble comes tomorrow.' : `${fmt(t)} with ${state.moves} moves.`), !dnf);
+    setStatus('Daily challenge: ' + (dnf ? 'DNF. A new scramble comes tomorrow.' : `${fmt(t)} with ${state.moves} moves.`), !dnf);
     accountOnSolve(t, { replay: replayText, dnf, daily: day }, () => { daily.local.synced = true; storeDaily(); });
     if (daily.prevMode === 'learn') setMode('learn');
     daily.prevMode = null;
@@ -4596,7 +4631,6 @@ img { max-width: 100%; }
   function renderDaily() {
     if (!daily) return;
     const day = todayUTC(), res = dailyToday();
-    $('dailyNum').textContent = `#${dailyNumber(day)}`;
     $('dailyBtn').hidden = !!res;
     $('dailyBtn').disabled = daily.active || state.scrambling;
     $('dailyBtn').textContent = daily.active ? 'Your try is on' : 'Play today\'s';
@@ -4615,10 +4649,10 @@ img { max-width: 100%; }
   $('dailyBtn').addEventListener('click', startDaily);
   // Sharing today's result: a short message with the time and a link that opens the daily challenge.
   function dailyShareText() {
-    const day = todayUTC(), res = dailyToday();
+    const res = dailyToday();
     if (!res) return '';
     const line = res.dnf ? '❌ DNF this time' : `⏱️ ${fmt(res.time)}` + (res.moves ? ` (${res.moves} moves)` : '');
-    return [`Desk Cube daily #${dailyNumber(day)} 🧊`, line, res.dnf ? 'Can you do better?' : 'Can you beat my time?', 'https://deskcube.app/#daily'].join('\n');
+    return ['Desk Cube daily challenge 🧊', line, res.dnf ? 'Can you do better?' : 'Can you beat my time?', 'https://deskcube.app/#daily'].join('\n');
   }
   $('dailyShareBtn').addEventListener('click', async e => {
     const text = dailyShareText(), btn = e.currentTarget;
@@ -4647,9 +4681,8 @@ img { max-width: 100%; }
     history.replaceState(null, '', location.pathname + location.search);
     if (cube.n !== 3 && !setSize(3, true)) return;
     showTab('practice');
-    const day = todayUTC();
-    setStatus(dailyToday() ? `You've already played daily challenge #${dailyNumber(day)}. A new one comes tomorrow.`
-      : `Daily challenge #${dailyNumber(day)}: the same scramble for everyone today. Press Play today's when you're ready.`);
+    setStatus(dailyToday() ? 'You\'ve already played today\'s daily challenge. A new one comes tomorrow.'
+      : 'Daily challenge: the same scramble for everyone today. Press Play today\'s when you\'re ready.');
     $('dailyBox').classList.add('flash');
     $('dailyBox').scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
     setTimeout(() => $('dailyBox').classList.remove('flash'), 2400);
@@ -4890,7 +4923,7 @@ img { max-width: 100%; }
     list.forEach((s, i) => {
       const tr = document.createElement('tr');
       if (!s.dnf && s.time_ms === best) tr.className = 'best';
-      if (s.scramble) tr.title = (s.competition ? 'Competition solve. ' : s.daily ? `Daily challenge #${dailyNumber(s.daily)}. ` : '') + 'Scramble: ' + s.scramble;
+      if (s.scramble) tr.title = (s.competition ? 'Competition solve. ' : s.daily ? 'Daily challenge. ' : '') + 'Scramble: ' + s.scramble;
       const when = new Date(s.solved_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
       const timeText = (s.dnf ? 'DNF' : fmt(s.time_ms)) + (s.competition ? ' · comp' : s.daily ? ' · daily' : '');
       for (const text of [String(n - i), timeText, s.moves === null || s.moves === undefined ? '–' : String(s.moves), when]) {
@@ -5446,7 +5479,7 @@ img { max-width: 100%; }
       $('lbAvg').setAttribute('aria-checked', kind === 'avg');
       $('lbDaily').setAttribute('aria-checked', isDaily);
       $('lbNote').textContent = isDaily
-        ? `Daily challenge #${dailyNumber(day)}: everyone's one try at today's scramble. Press ▶ to watch a solve.`
+        ? 'Daily challenge: everyone\'s one try at today\'s scramble. Press ▶ to watch a solve.'
         : 'Only solves from Official competition mode count, so everyone had the same 15 seconds to look at the cube. Press ▶ to watch a solve.';
       $('lbHead').innerHTML = single
         ? `<tr><th>#</th><th>Name</th><th>Time</th><th>Moves</th><th>${isDaily ? 'Time of day' : 'When'}</th><th><span class="sr-only">Replay</span></th></tr>`
