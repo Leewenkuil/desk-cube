@@ -152,6 +152,9 @@
   .daily-next { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
   .daily-result { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
   .daily-result.dnf { color: var(--danger); }
+  /* Opened from a shared result: a brief glow so the challenge is easy to spot. */
+  .daily.flash { animation: dailyFlash 0.8s ease-in-out 3; border-radius: 10px; }
+  @keyframes dailyFlash { 50% { box-shadow: 0 0 0 3px var(--accent); } }
   /* Replay controls over the bottom of the cube. */
   .stage.replaying .hint { display: none; }
   .replay-bar {
@@ -771,7 +774,7 @@
   <dialog class="confirm" id="shareDialog" aria-labelledby="shareTitle">
     <form method="dialog">
       <h3 id="shareTitle">Share this solve</h3>
-      <p>Anyone who opens this link watches the solve play back. Copy it and send it on.</p>
+      <p id="shareNote">Anyone who opens this link watches the solve play back. Copy it and send it on.</p>
       <input class="share-link" id="shareLink" readonly aria-label="Link to the replay">
       <div class="confirm-actions">
         <button value="close" class="primary" autofocus>Done</button>
@@ -1106,6 +1109,7 @@
       <p class="daily-result" id="dailyResult" hidden></p>
       <div class="actions two">
         <button class="primary" id="dailyBtn">Play today's</button>
+        <button class="primary" id="dailyShareBtn" hidden title="Copy your result to send to friends">Share result</button>
         <button id="dailyBoardBtn" hidden>Today's results</button>
       </div>
     </section>
@@ -4295,6 +4299,8 @@
       return;
     } catch (e) {}
     // No clipboard (blocked in some views): show the link to copy by hand.
+    $('shareTitle').textContent = 'Share this solve';
+    $('shareNote').textContent = 'Anyone who opens this link watches the solve play back. Copy it and send it on.';
     $('shareLink').value = url;
     if ($('shareDialog').showModal) $('shareDialog').showModal();
     $('shareLink').select();
@@ -4560,6 +4566,7 @@
     $('dailyBtn').textContent = daily.active ? 'Your try is on' : 'Play today\'s';
     $('dailyNote').hidden = !!res;
     $('dailyResult').hidden = !res;
+    $('dailyShareBtn').hidden = !res;
     if (res) {
       $('dailyResult').textContent = 'Your result today: ' + (res.dnf ? 'DNF' : fmt(res.time) + (res.moves ? ` · ${res.moves} moves` : ''));
       $('dailyResult').classList.toggle('dnf', !!res.dnf);
@@ -4570,6 +4577,47 @@
     $('dailyNext').textContent = res ? `Next one in ${h} h ${m} min` : '';
   }
   $('dailyBtn').addEventListener('click', startDaily);
+  // Sharing today's result: a short message with the time and a link that opens the daily challenge.
+  function dailyShareText() {
+    const day = todayUTC(), res = dailyToday();
+    if (!res) return '';
+    const line = res.dnf ? '❌ DNF this time' : `⏱️ ${fmt(res.time)}` + (res.moves ? ` (${res.moves} moves)` : '');
+    return [`Desk Cube daily #${dailyNumber(day)} 🧊`, line, res.dnf ? 'Can you do better?' : 'Can you beat my time?', 'https://deskcube.app/#daily'].join('\n');
+  }
+  $('dailyShareBtn').addEventListener('click', async e => {
+    const text = dailyShareText(), btn = e.currentTarget;
+    if (!text) return;
+    // Phones get the system share sheet; elsewhere the message is copied.
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+      try { await navigator.share({ text }); return; }
+      catch (err) { if (err && err.name === 'AbortError') return; }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = 'Copied: paste it anywhere';
+      setTimeout(() => { btn.textContent = 'Share result'; }, 2500);
+      return;
+    } catch (err) {}
+    // No clipboard (blocked in some views): show the message to copy by hand.
+    $('shareTitle').textContent = 'Share your result';
+    $('shareNote').textContent = 'Copy this and send it to a friend.';
+    $('shareLink').value = text.replace(/\n/g, ' ');
+    if ($('shareDialog').showModal) $('shareDialog').showModal();
+    $('shareLink').select();
+  });
+  // A shared result's link (#daily) opens the 3×3 with today's challenge in view.
+  function openDailyLink() {
+    if (location.hash !== '#daily') return;
+    history.replaceState(null, '', location.pathname + location.search);
+    if (cube.n !== 3 && !setSize(3, true)) return;
+    showTab('practice');
+    const day = todayUTC();
+    setStatus(dailyToday() ? `You've already played daily challenge #${dailyNumber(day)}. A new one comes tomorrow.`
+      : `Daily challenge #${dailyNumber(day)}: the same scramble for everyone today. Press Play today's when you're ready.`);
+    $('dailyBox').classList.add('flash');
+    $('dailyBox').scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+    setTimeout(() => $('dailyBox').classList.remove('flash'), 2400);
+  }
   setInterval(renderDaily, 30000);
 
   // ---------- Pause ----------
@@ -5490,7 +5538,7 @@
     try { guest = localStorage.getItem(GUEST_KEY) === '1'; } catch (e) {}
     // Links from confirmation and reset emails carry the session in the address, so skip the welcome page for those.
     const fromEmail = /access_token|type=recovery|[?&]code=/.test(location.hash + location.search);
-    const sharedLink = /^#watch=/.test(location.hash);
+    const sharedLink = /^#(watch=|daily$)/.test(location.hash);
     if (!guest && !hasStoredSession() && !fromEmail && !sharedLink) showLanding();
   }
 
@@ -5505,6 +5553,7 @@
   renderPanel();
   renderStages();
   openSharedReplay();
+  openDailyLink();
   requestAnimationFrame(step);
 })();
 </script>
