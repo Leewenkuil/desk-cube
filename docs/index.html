@@ -417,10 +417,9 @@ img { max-width: 100%; }
   :root[data-mode="speed"] .learn-only { display: none !important; }
   /* Cube size: the trainer, the daily challenge and competitions are 3×3 only. */
   :root[data-size="2"] .three-only, :root[data-size="4"] .three-only, :root[data-size="5"] .three-only { display: none !important; }
-  /* Inner and wide turns are for the 4×4 and 5×5; middle slices for odd cubes. The 5×5 has no lesson or hints yet. */
+  /* Inner and wide turns are for the 4×4 and 5×5; middle slices for odd cubes. */
   :root:not([data-size="4"]):not([data-size="5"]) .big-only { display: none !important; }
   :root[data-size="2"] .odd-only, :root[data-size="4"] .odd-only { display: none !important; }
-  :root[data-size="5"] .no-five { display: none !important; }
   .size-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
   .size-row .size-label { color: var(--muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
   .size-row .mode-switch { grid-template-columns: repeat(4, 1fr); }
@@ -714,7 +713,7 @@ img { max-width: 100%; }
         <button role="radio" id="modeSpeed" aria-checked="false" title="Hide all learning help">Solving</button>
       </div>
       <button class="learn-btn" id="keysBtn" aria-controls="keysPanel" title="Show or hide the controls (?)">Controls</button>
-      <button class="learn-btn learn-only no-five" id="learnBtn">Learn to solve</button>
+      <button class="learn-btn learn-only" id="learnBtn">Learn to solve</button>
       <button class="theme-switch" id="themeBtn" role="switch" aria-checked="false" title="Switch between light and dark">
         <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
         <span>Dark</span>
@@ -800,7 +799,7 @@ img { max-width: 100%; }
         <li title="Turn the whole cube left / right (y, y′)"><span class="kp-keys"><kbd>←</kbd><kbd>→</kbd></span><span>Turn</span></li>
         <li title="Tip the whole cube up / down (x, x′)"><span class="kp-keys"><kbd>↑</kbd><kbd>↓</kbd></span><span>Tip</span></li>
         <li title="Zoom in / out (or scroll); 0 resets"><span class="kp-keys"><kbd>+</kbd><kbd>−</kbd></span><span>Zoom</span></li>
-        <li class="learn-only no-five" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
+        <li class="learn-only" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
     </div>
   </nav>
   <dialog class="confirm" id="resetDialog" aria-labelledby="resetTitle">
@@ -1056,7 +1055,7 @@ img { max-width: 100%; }
         <button role="radio" data-size="5" aria-checked="false" title="5×5: wide, inner and middle layers">5×5</button>
       </div>
     </div>
-    <div class="tabs learn-only no-five" role="tablist">
+    <div class="tabs learn-only" role="tablist">
       <button role="tab" id="tab-practice" aria-selected="true" aria-controls="panel-practice">Practice</button>
       <button role="tab" id="tab-lesson" aria-selected="false" aria-controls="panel-lesson">Lesson</button>
       <button role="tab" id="tab-trainer" class="three-only" aria-selected="false" aria-controls="panel-trainer">Trainer</button>
@@ -1178,7 +1177,7 @@ img { max-width: 100%; }
 
     <p class="support" id="supportBox" hidden><span>Desk Cube is free with no ads.</span> <a class="tip-btn" id="kofiLink" target="_blank" rel="noopener">Leave a tip ☕</a></p>
 
-    <section class="coach learn-only no-five">
+    <section class="coach learn-only">
       <div class="coach-head">
         <h2>Solving steps</h2>
         <button id="hintBtn" class="primary" title="Show the next moves (H)">Hint <kbd>H</kbd></button>
@@ -2151,7 +2150,7 @@ img { max-width: 100%; }
       ],
     },
   ];
-  // The 2×2 and 4×4 lessons. Their `gen` steps build examples with the any-size model further down
+  // The 2×2, 4×4 and 5×5 lessons. Their `gen` steps build examples with the any-size model further down
   // (the hint solver behind the 3×3 lesson only knows the 3×3).
   const LESSON2 = [
     {
@@ -2227,7 +2226,7 @@ img { max-width: 100%; }
     },
     {
       title: 'Build the white center',
-      gen: () => gen4Centers(0),
+      gen: () => genCenters(0),
       done: 'The white center is finished: four white pieces together on top.',
       body: [
         '<b>Goal:</b> the four white center pieces together on top.',
@@ -2239,7 +2238,7 @@ img { max-width: 100%; }
     },
     {
       title: 'Build the yellow center',
-      gen: () => gen4Centers(1),
+      gen: () => genCenters(1),
       done: 'Both the white and yellow centers are finished.',
       body: [
         '<b>Goal:</b> the yellow center on the face opposite white.',
@@ -2249,7 +2248,7 @@ img { max-width: 100%; }
     },
     {
       title: 'Build the side centers',
-      gen: () => gen4Centers(2),
+      gen: () => genCenters(2),
       done: 'All six centers are finished.',
       body: [
         '<b>Goal:</b> the last four centers, in the right order. With white on top and green in front, red goes on the right, blue at the back and orange on the left.',
@@ -2306,8 +2305,89 @@ img { max-width: 100%; }
       ],
     },
   ];
-  const LESSONS = { 2: LESSON2, 3: LESSON, 4: LESSON4 };
-  function steps() { return LESSONS[cube.n] || LESSON; }
+  const LESSON5 = [
+    {
+      title: 'How the 5×5 works',
+      body: [
+        'The 5×5 has <b>corners</b> like the 3×3, but each face has nine <b>center</b> pieces and each edge has three pieces: a middle piece with a side piece either side of it.',
+        'The very middle sticker of each face never moves relative to the other five, so it tells you that face\'s color, just like on a 3×3. The other eight center pieces do move.',
+        'The plan is <b>reduction</b>: build the six centers, join up the edge pieces, and then the cube solves exactly like a big 3×3.',
+        'Outer turns use the 3×3 letters. <code class="mv">2R</code> turns just the layer inside R, <code class="mv">r</code> turns R and that layer together, and <code class="mv">M</code> turns the very middle layer, the way L turns. The same goes for the other letters.',
+        'Press Play to watch <code class="mv">2R U M\' U\' 2R\' U M U\'</code>. It swaps two center pieces and leaves everything else exactly as it was.',
+      ],
+      demo: "2R U M' U' 2R' U M U'",
+    },
+    {
+      title: 'Build the white center',
+      gen: () => genCenters(0),
+      done: 'The white center is finished: nine white pieces together on top.',
+      body: [
+        '<b>Goal:</b> all nine center pieces on top white, around the white middle sticker.',
+        'Hold white\'s middle sticker on top and find a white center piece on a side face. Hold that face in front. There are two kinds of center piece, and each has its own moves:',
+        '<b>A corner of the center:</b> turn <code class="mv">F</code> until the piece is at the bottom left of the front center, and turn <code class="mv">U</code> until a spot that isn\'t white is at the front right of the top center. Then do <code class="mv">2R U 2L\' U\' 2R\' U 2L U\'</code>.',
+        '<b>The middle of a side of the center:</b> turn <code class="mv">F</code> until the piece is bottom middle of the front center, and turn <code class="mv">U</code> until a spot that isn\'t white is right middle of the top center. Then do <code class="mv">2R U M\' U\' 2R\' U M U\'</code>.',
+        'Those moves only change the top and front centers, and the corners and edges come back. A white piece on the bottom swaps straight up with <code class="mv">2R2 U 2L2 U\' 2R2 U 2L2 U\'</code> for a corner kind, or <code class="mv">2R2 U M2 U\' 2R2 U M2 U\'</code> for a side kind.',
+      ],
+    },
+    {
+      title: 'Build the yellow center',
+      gen: () => genCenters(1),
+      done: 'Both the white and yellow centers are finished.',
+      body: [
+        '<b>Goal:</b> the yellow center, on the face opposite white.',
+        'Turn the cube over so white is on the bottom, and build yellow on top the same way, from the front.',
+        'Only take yellow pieces from the four side faces. The bottom moves would swap white pieces off the bottom.',
+      ],
+    },
+    {
+      title: 'Build the side centers',
+      gen: () => genCenters(2),
+      done: 'All six centers are finished.',
+      body: [
+        '<b>Goal:</b> the last four centers. The middle stickers already say which color goes where.',
+        'Hold an unfinished center on top and take its pieces from the front, the same way. These moves only change the top and front centers, so any center that isn\'t one of those two stays as it is.',
+        'Next, build the center opposite the first one. That leaves two unfinished centers opposite each other: hold them on top and bottom, and swap pieces between them with the bottom moves until both are done.',
+      ],
+    },
+    {
+      title: 'Join up the edges',
+      gen: () => gen5Edges(),
+      done: 'Every edge is joined: the cube now behaves like a big 3×3.',
+      body: [
+        '<b>Goal:</b> each edge\'s two side pieces match its middle piece, so every edge is one solid strip.',
+        'Hold an edge that needs a side piece at the front left, with the wrong piece in the lower row. Using outer turns only (never inner layers, which would break the centers), bring the piece that belongs there to the top back edge, on the right.',
+        'Then do <code class="mv">2D R U R\' 2D\'</code>. The <code class="mv">2D</code> moves the lower row aside, <code class="mv">R U R\'</code> brings the piece down, and <code class="mv">2D\'</code> carries it into place. Three side pieces swap around and everything else stays put.',
+        'That\'s hard to see at first, so lean on the examples and on the Hint button, which works out the exact set-up for your cube. Other versions of the same moves, like <code class="mv">2U R U\' R\' 2U\'</code>, work on the upper row.',
+      ],
+    },
+    {
+      title: 'Fix a flipped pair',
+      gen: () => gen5Flip(),
+      done: 'The side pieces are swapped back.',
+      body: [
+        'Sometimes the last side pieces can\'t be joined by those moves, however you try. If an edge has its two side pieces swapped with each other, that\'s what has happened. It can\'t happen on a 3×3.',
+        'Turn the outer faces until that edge is at the top front. Then do <code class="mv">2R2 B2 U2 2L U2 2R\' U2 2R U2 F2 2R F2 2L\' B2 2R2</code>. It swaps those two side pieces and leaves everything else as it was.',
+      ],
+    },
+    {
+      title: 'Solve it like a 3×3',
+      body: [
+        'Each center is now a solid block and each edge a solid strip, so treat the cube as a 3×3 and use the 3×3 beginner\'s method.',
+        'Use only outer turns (<code class="mv">U</code>, <code class="mv">R</code>, <code class="mv">F</code> and so on). Inner and wide turns would split the centers and edges again.',
+        'For the yellow cross, use <code class="mv">F R U R\' U\' F\'</code> (twice for an L shape) instead of the <code class="mv">f</code> version.',
+        'Good news: unlike the 4×4, nothing unusual can come up from here. If you joined the edges properly, the 3×3 steps always finish it.',
+      ],
+    },
+    {
+      title: 'Solve one on your own',
+      body: [
+        'That\'s the whole method: white center, yellow center, side centers, join the edges, then solve it like a 3×3.',
+        'Scramble the cube and work through the steps. A first 5×5 solve takes a long time, and that\'s normal. Press Hint on the Practice tab whenever you get stuck.',
+      ],
+    },
+  ];
+  const LESSONS = { 2: LESSON2, 3: LESSON, 4: LESSON4, 5: LESSON5 };
+  function steps() { return LESSONS[cube.n]; }
   const EXAMPLE_NOTE = 'The example starts from a new scramble with the earlier steps already done. Press <b>Play</b> to watch this step solved part by part, or <b>Next move</b> to go one turn at a time. <b>New example</b> deals a different cube.';
 
   // Each size remembers its own step.
@@ -2584,7 +2664,7 @@ img { max-width: 100%; }
     showTab('lesson');
     if (window.matchMedia('(max-width: 780px)').matches) $('rail').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
   });
-  try { if (localStorage.getItem('deskcube-tab') === 'lesson' && cube.n !== 5) showTab('lesson'); } catch (e) {}
+  try { if (localStorage.getItem('deskcube-tab') === 'lesson') showTab('lesson'); } catch (e) {}
   renderLesson();
 
   // ---------- Controls panel ----------
@@ -3039,7 +3119,7 @@ img { max-width: 100%; }
     for (const b of $('sizePick').children) b.setAttribute('aria-checked', +b.dataset.size === n);
     try { localStorage.setItem('deskcube-size', String(n)); } catch (e) {}
     // The trainer is 3×3 only; the lesson switches to this size's steps.
-    if ((n !== 3 && !$('panel-trainer').hidden) || (n === 5 && !$('panel-lesson').hidden)) showTab('practice');
+    if (n !== 3 && !$('panel-trainer').hidden) showTab('practice');
     lessonSizeChanged();
     buildStages();
     placeFaceLabels();
@@ -3412,10 +3492,11 @@ img { max-width: 100%; }
       pieceBy.get(kstr(s.c)).push(i);
       const big = s.c.filter(v => Math.abs(v) === H).length;
       if (big === 1) { if (!centers.has(kstr(s.n))) centers.set(kstr(s.n), []); centers.get(kstr(s.n)).push(i); }
-      if (big === 2 && n === 4) {
-        const key = kstr(s.c.map(v => Math.abs(v) === H ? v : 0)), half = s.c.find(v => Math.abs(v) !== H) > 0 ? 1 : 0;
-        if (!edgeBy.has(key)) edgeBy.set(key, [[], []]);
-        edgeBy.get(key)[half].push(i);
+      if (big === 2 && n >= 4) {
+        // The 4×4's edge is [half, half]; the 5×5's is [side piece, middle piece, side piece].
+        const key = kstr(s.c.map(v => Math.abs(v) === H ? v : 0)), along = s.c.find(v => Math.abs(v) !== H);
+        if (!edgeBy.has(key)) edgeBy.set(key, n === 5 ? [[], [], []] : [[], []]);
+        edgeBy.get(key)[n === 5 ? along + 1 : along > 0 ? 1 : 0].push(i);
       }
     });
     return (sims[n] = { n, H, at, slots, solved, apply, centers, edges: [...edgeBy.values()], pieces: [...pieceBy.values()] });
@@ -3498,20 +3579,25 @@ img { max-width: 100%; }
     return ex;
   }
 
-  // 4×4 centers: each part swaps one piece into the top center, from the front with r U' r' (or U, U2
-  // in the middle), or from the bottom with r2 U r2, after lining it up with F or D and U.
+  // Centers: each part swaps one piece into the top center, from the front or from the bottom, after
+  // lining it up with F or D and U.
   const centerCount = (S, st, dir, col) => S.centers.get(kstr(dir)).filter(i => st[i] === col).length;
+  // On the 5×5 each kind of center piece has its own moves, which change only the two centers involved.
+  const CENTER_ALGS = {
+    4: [["r U' r'", "r U r'", "r U2 r'"], ['r2 U r2', "r2 U' r2", 'r2 U2 r2']],
+    5: [["2R U 2L' U' 2R' U 2L U'", "2R U M' U' 2R' U M U'"], ["2R2 U 2L2 U' 2R2 U 2L2 U'", "2R2 U M2 U' 2R2 U M2 U'"]],
+  };
   function centerPart(S, st, up, col, fronts, keep) {
-    const now = centerCount(S, st, up, col);
+    const now = centerCount(S, st, up, col), [fromFront, fromBottom] = CENTER_ALGS[S.n], full = S.centers.get(kstr(up)).length;
     let best = null;
     for (const front of fronts) {
       const fr = makeFrame(up, front);
-      for (const [src, sets, ins] of [['front', ['', 'F', "F'", 'F2'], ["r U' r'", "r U r'", "r U2 r'"]], ['bottom', ['', 'D', "D'", 'D2'], ['r2 U r2', "r2 U' r2", 'r2 U2 r2']]]) {
+      for (const [src, sets, ins] of [['front', ['', 'F', "F'", 'F2'], fromFront], ['bottom', ['', 'D', "D'", 'D2'], fromBottom]]) {
         for (const s1 of sets) for (const u of QUARTERS) for (const i of ins) {
           const moves = movesIn(fr, `${s1} ${u} ${i}`);
           if (best && moves.length >= best.moves.length) continue;
           const after = S.apply(st, moves);
-          if (centerCount(S, after, up, col) <= now || keep.some(([d, c]) => centerCount(S, after, d, c) < 4)) continue;
+          if (centerCount(S, after, up, col) <= now || keep.some(([d, c]) => centerCount(S, after, d, c) < full)) continue;
           best = { frame: fr, moves, src, after };
         }
       }
@@ -3519,8 +3605,8 @@ img { max-width: 100%; }
     return best;
   }
   const perpendicular = (a, b) => SIDES.concat([W_UP, Y_UP]).filter(v => v[0] * a[0] + v[1] * a[1] + v[2] * a[2] === 0 && v[0] * b[0] + v[1] * b[1] + v[2] * b[2] === 0);
-  function gen4Centers(stage) {
-    const S = sim(4), fr0 = makeFrame(W_UP, SIDES[0]), setup = [];
+  function genCenters(stage) {
+    const S = sim(cube.n), full = S.centers.get(kstr(W_UP)).length, fr0 = makeFrame(W_UP, SIDES[0]), setup = [];
     for (let i = 0; i < 30; i++) setup.push(...movesIn(fr0, pick(['', '2']) + pick('UDFBRL') + pick(['', "'", '2'])));
     let st = S.apply(S.solved, setup);
     // The order: white on top, yellow, then one side, the opposite side, and the last two together.
@@ -3538,8 +3624,8 @@ img { max-width: 100%; }
     const parts = [];
     for (const p of plan) {
       const col = colorOf(p.up);
-      for (let guard = 0; centerCount(S, st, p.up, col) < 4; guard++) {
-        const part = guard < 12 && centerPart(S, st, p.up, col, p.fronts, p.keep);
+      for (let guard = 0; centerCount(S, st, p.up, col) < full; guard++) {
+        const part = guard < 20 && centerPart(S, st, p.up, col, p.fronts, p.keep);
         if (!part) return null;
         st = part.after;
         // Earlier stages are done quietly, as part of dealing the example.
@@ -3549,7 +3635,7 @@ img { max-width: 100%; }
         parts.push({
           frame: part.frame, moves: part.moves,
           grip: p.stage === 0 ? 'Hold white\'s center on top' : p.stage === 1 ? 'Hold yellow\'s center on top, white underneath' : `Hold ${name}\'s center on top, white on the ${side}`,
-          caption: `Bring a ${name} piece up from the ${part.src} (${n} of 4 on top)` + (p.last && n === 4 ? `. The ${cname(colorOf(neg(p.up)))} center underneath is done too` : ''),
+          caption: `Bring a ${name} piece up from the ${part.src} (${n} of ${full} on top)` + (p.last && n === full ? `. The ${cname(colorOf(neg(p.up)))} center underneath is done too` : ''),
         });
       }
     }
@@ -3584,6 +3670,38 @@ img { max-width: 100%; }
     }
     return { setup: [...pre, ...undone(parts.flatMap(p => p.moves))], parts };
   }
+  // 5×5 edges: three side pieces swap around, and whole edges otherwise stay whole.
+  const wings5 = (S, st) => S.edges.reduce((n, [a, m, b]) => n + a.every((i, k) => st[i] === st[m[k]]) + b.every((i, k) => st[i] === st[m[k]]), 0);
+  const edges5 = (S, st) => S.edges.filter(([a, m, b]) => a.every((i, k) => st[i] === st[m[k]]) && b.every((i, k) => st[i] === st[m[k]])).length;
+  const SLICES5 = ['2D', "2D'", '2U', "2U'"], LIFTS5 = ["R U R'", "R U' R'", "R' U R", "R' U' R", "F' U F", "F' U' F", "F U F'", "F U' F'"];
+  const SWAPS5 = SLICES5.flatMap(sl => LIFTS5.map(x => `${sl} ${x} ${sl.endsWith("'") ? sl[0] + sl[1] : sl + "'"}`));
+  const OUTER_TURNS = 'UDFBRL'.split('').flatMap(f => [f, f + "'", f + '2']);
+  function mixOuter(fr, count) {
+    const out = [];
+    for (let i = 0; i < count; i++) out.push(...movesIn(fr, pick(OUTER_TURNS)));
+    return out;
+  }
+  function gen5Edges() {
+    const S = sim(5), pre = mixOuter(makeFrame(W_UP, SIDES[0]), 20);
+    let st = S.apply(S.solved, pre);
+    const parts = [];
+    for (let n = 0, tries = 0; n < 4; tries++) {
+      if (tries > 80) return null;
+      const fr = makeFrame(W_UP, pick(SIDES)), set = mixOuter(fr, pick([0, 1, 2])), alg = movesIn(fr, pick(SWAPS5));
+      const mid = S.apply(st, undone(alg));
+      if (wings5(S, st) - wings5(S, mid) < 1) continue;
+      const grip = gripText('white', fr), joined = edges5(S, st);
+      parts.unshift(...(set.length ? [{ frame: fr, grip, moves: set, caption: 'Set up: bring the pieces into position with outer turns' }] : []),
+        { frame: fr, grip, moves: alg, caption: `Swap the side pieces (${joined} of 12 edges joined after)` });
+      st = S.apply(mid, undone(set));
+      n++;
+    }
+    return { setup: [...pre, ...undone(parts.flatMap(p => p.moves))], parts };
+  }
+  function gen5Flip() {
+    const fr = makeFrame(W_UP, pick(SIDES)), pre = mixOuter(fr, 20);
+    return backwards(pre, [{ frame: fr, grip: gripText('white', fr), moves: movesIn(fr, FLIP_ALG), caption: 'The top front edge has its side pieces swapped: swap them back' }]);
+  }
   // 4×4 last-layer cases: a flipped edge at the yellow cross, and two swapped edges at the end.
   function gen4OllParity() {
     const fr = makeFrame(Y_UP, pick(SIDES)), grip = gripText('yellow', fr), pre = [];
@@ -3608,7 +3726,12 @@ img { max-width: 100%; }
     { name: 'White cross', lesson: 5 }, { name: 'White corners', lesson: 5 }, { name: 'Middle layer', lesson: 5 }, { name: 'Yellow cross', lesson: 5 },
     { name: 'Yellow edges', lesson: 5 }, { name: 'Yellow corners in place', lesson: 5 }, { name: 'Twist yellow corners', lesson: 5 },
   ];
-  const stageList = () => cube.n === 2 ? STAGES2 : cube.n === 4 ? STAGES4 : STAGES;
+  const STAGES5 = [
+    { name: 'White center', lesson: 1, of: 9 }, { name: 'Yellow center', lesson: 2, of: 9 }, { name: 'Side centers', lesson: 3 }, { name: 'Join the edges', lesson: 4, of: 12 },
+    { name: 'White cross', lesson: 6 }, { name: 'White corners', lesson: 6 }, { name: 'Middle layer', lesson: 6 }, { name: 'Yellow cross', lesson: 6 },
+    { name: 'Yellow edges', lesson: 6 }, { name: 'Yellow corners in place', lesson: 6 }, { name: 'Twist yellow corners', lesson: 6 },
+  ];
+  const stageList = () => cube.n === 2 ? STAGES2 : cube.n === 4 ? STAGES4 : cube.n === 5 ? STAGES5 : STAGES;
   const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   const orients = {};
   function orientations(n) {
@@ -3736,11 +3859,11 @@ img { max-width: 100%; }
   // the 3×3 hint finds the moves, and those letters are played on the outer layers. The two 4×4-only
   // cases show up as what the 3×3 can't do: an odd number of yellow edges up, or corners that can't be placed.
   const FLIP_ALG = "2R2 B2 U2 2L U2 2R' U2 2R U2 F2 2R F2 2L' B2 2R2", SWAP_ALG = '2R2 U2 2R2 u2 2R2 u2 U2', PAIR_ALG = "d R U R' F R' F' R d'";
-  const to3 = c => c.map(v => Math.abs(v) === 1.5 ? Math.sign(v) : 0);
-  // The cube as a 3×3: each center's color, each edge from one of its halves.
+  const to3 = (S, c) => c.map(v => Math.abs(v) === S.H ? Math.sign(v) : 0);
+  // The cube as a 3×3: each center's color, each edge from one of its pieces.
   function as3x3State(S, st) {
-    const out = new Uint8Array(54);
-    SLOTS.forEach((sl, i) => { out[i] = st[S.at(sl.c.map(v => v ? v * 1.5 : 0.5), sl.n)]; });
+    const out = new Uint8Array(54), inner = S.n === 4 ? 0.5 : 0;
+    SLOTS.forEach((sl, i) => { out[i] = st[S.at(sl.c.map(v => v ? v * S.H : inner), sl.n)]; });
     return out;
   }
   function as3x3(fn) {
@@ -3770,14 +3893,14 @@ img { max-width: 100%; }
     }
     return { ...best, stage, counts, st3, k };
   }
-  function centerHint4(S, st, b) {
+  function centerHintBig(S, st, b) {
     const W = b.o.w, Y = neg(W), white = colorOf(W_UP), yellow = colorOf(Y_UP);
     let part = null, up = W, col = white;
     if (b.stage === 0) part = centerPart(S, st, W, white, b.sides, []);
     else if (b.stage === 1) { up = Y; col = yellow; part = centerPart(S, st, Y, yellow, b.sides, [[W, white]]); }
     else {
       // Finish the center opposite a finished one first; the last two swap pieces between themselves.
-      const done = b.sides.filter(d => centerCount(S, st, d, b.of(d)) === 4), keep = [[W, white], [Y, yellow], ...done.map(d => [d, b.of(d)])];
+      const done = b.sides.filter(d => centerCount(S, st, d, b.of(d)) === S.centers.get(kstr(d)).length), keep = [[W, white], [Y, yellow], ...done.map(d => [d, b.of(d)])];
       const left = b.sides.filter(d => !done.includes(d)).sort((p, q) => (done.some(d => kstr(d) === kstr(neg(q))) - done.some(d => kstr(d) === kstr(neg(p)))) || (centerCount(S, st, q, b.of(q)) - centerCount(S, st, p, b.of(p))));
       for (const d of left) {
         part = centerPart(S, st, d, b.of(d), perpendicular(d, W), keep);
@@ -3818,38 +3941,206 @@ img { max-width: 100%; }
     return { phases, glow, text: `Next, the ${names} edge${fresh.length > 1 ? 's' : ''}: the halves are glowing. Hold white's center on top, ${cname(b.of(r.fr.front))} in front, then do the moves below.` };
   }
   // Move a 3×3 hint's turns onto the 4×4's outer layers, and its pieces onto the 4×4's.
-  function reducedHint4(S, st, b) {
+  function reducedHintBig(S, st, b) {
     const st3 = b.st3, L = layout(st3), s3 = b.stage - 4, yc = centerColor(st3, L.y);
-    const wings = c => S.pieces.filter(idx => kstr(to3(S.slots[idx[0]].c)) === kstr(c)).flat();
+    const wings = c => S.pieces.filter(idx => kstr(to3(S, S.slots[idx[0]].c)) === kstr(c)).flat();
     const special = (alg, lesson, front, glowAt, text) => {
       const fr = makeFrame(L.y, front);
       return { lesson, phases: [{ frame: fr, moves: movesIn(fr, alg), cap: '' }], glow: glowAt(fr).flatMap(wings),
         text: `${text} Hold yellow on top, ${cname(centerColor(st3, front))} in front, then do the moves below.` };
     };
     // An odd number of yellow edges up can't happen on a 3×3: one edge is flipped.
-    if (s3 === 3 && b.counts[4 + 3] % 2) {
+    if (S.n === 4 && s3 === 3 && b.counts[4 + 3] % 2) {
       const front = L.sides.find(d => st3[slotOf(add(L.y, d), L.y)] !== yc);
       return special(FLIP_ALG, 6, front, fr => [add(fr.up, fr.front)], 'One or three yellow edges up: that only happens on a 4×4, and it means one edge is flipped. The glowing edge is the one to flip.');
     }
     const h = as3x3(() => findHint(st3, true));
-    if (!h.phases && s3 >= 4) {
+    if (S.n === 4 && !h.phases && s3 >= 4) {
       return special(SWAP_ALG, 7, L.sides[0], fr => [add(fr.up, fr.front), add(fr.up, neg(fr.front))], 'The last layer can\'t be finished from here with 3×3 moves: that only happens on a 4×4. Swap the two glowing edges, then carry on with the yellow edges.');
     }
     if (!h.phases) return null;
     const targets = as3x3(() => hintTargets(st3, h));
-    const phases = h.phases.map((p, i) => ({ frame: p.frame, cap: `Part ${i + 1}: ${cname(centerColor(st3, p.frame.front))} in front`, moves: p.moves.map(m => ({ label: m.label, ...decode(m.label, p.frame, 4) })) }));
+    const phases = h.phases.map((p, i) => ({ frame: p.frame, cap: `Part ${i + 1}: ${cname(centerColor(st3, p.frame.front))} in front`, moves: p.moves.map(m => ({ label: m.label, ...decode(m.label, p.frame, S.n) })) }));
     return { phases, glow: targets.flatMap(t => wings(t.now)), text: hintWords(st3, h, targets).replace(/^Step \d+, [^.]*\. /, '') };
   }
-  function hint4Core(S, st) {
-    const b = status4(S, st), stage = b.stage;
+  // ---------- 5×5 hints ----------
+  // The middle stickers say where every color goes. Edges use exact bookkeeping: for every side piece we
+  // know the spot it belongs in, a table says which outer turns line any three spots up for a swap, and the
+  // last few are planned right through, so each hint really gets closer. An odd arrangement of side pieces
+  // can't be fixed by three-way swaps alone, and is the one case that needs the flip.
+  function status5(S, st) {
+    const dirs = SIDES.concat([W_UP, Y_UP]), colorAt = d => st[S.at(d.map(v => v * 2), d)];
+    const W = dirs.find(d => colorAt(d) === colorOf(W_UP)), sides = dirs.filter(d => dot3(d, W) === 0);
+    const w = centerCount(S, st, W, colorOf(W_UP)), y = centerCount(S, st, neg(W), colorOf(Y_UP));
+    const done = sides.filter(d => centerCount(S, st, d, colorAt(d)) === 9).length, k = edges5(S, st), counts = [w, y, done, k];
+    let stage = w < 9 ? 0 : y < 9 ? 1 : done < 4 ? 2 : k < 12 ? 3 : -1, st3 = null;
+    if (stage === -1) {
+      st3 = as3x3State(S, st);
+      const c3 = stageCounts(st3, layout(st3)), s3 = stageOf(c3);
+      counts.push(...c3);
+      stage = s3 === 7 ? 99 : 4 + s3;
+    }
+    return { o: { w: W }, sides, of: colorAt, stage, counts, st3, k };
+  }
+  const det3 = (a, b, c) => dot3(a, cross3(b, c));
+  let wingModel = null;
+  function wingTables(S) {
+    if (wingModel) return wingModel;
+    const slots = [], stickerSlot = new Map();
+    S.edges.forEach(([a, m, b]) => {
+      for (const w of [a, b]) {
+        const c = S.slots[w[0]].c;
+        for (const i of w) stickerSlot.set(i, slots.length);
+        slots.push({ w, d: c.map(v => Math.abs(v) === 2 ? 0 : v) });
+      }
+    });
+    const fr = makeFrame(W_UP, SIDES[0]), ident = Uint8Array.from(S.solved, (_, i) => i);
+    const undoOf = t => t.endsWith("'") ? t[0] : t.endsWith('2') ? t : t + "'";
+    const maps = {};
+    for (const t of OUTER_TURNS) {
+      const to = [];
+      S.apply(ident, movesIn(fr, t)).forEach((orig, pos) => { if (stickerSlot.has(orig) && stickerSlot.has(pos)) to[stickerSlot.get(orig)] = stickerSlot.get(pos); });
+      maps[t] = to;
+    }
+    const key = tr => tr.slice().sort((a, b) => a - b).join();
+    const unmatched = st => { const out = []; S.edges.forEach(([a, m, b], e) => { if (!a.every((i, k) => st[i] === st[m[k]])) out.push(2 * e); if (!b.every((i, k) => st[i] === st[m[k]])) out.push(2 * e + 1); }); return out; };
+    const table = new Map();
+    for (const alg of SWAPS5) {
+      // The three spots this swap works on: unsolved just before it, on a cube it would finish.
+      const start = unmatched(S.apply(S.solved, undone(movesIn(fr, alg))));
+      const seen = new Map([[key(start), []]]);
+      let frontier = [{ tr: start, path: [] }];
+      for (let d = 0; d < 4 && frontier.length; d++) {
+        const next = [];
+        for (const { tr, path } of frontier) for (const t of OUTER_TURNS) {
+          if (path.length && path[0][0] === t[0]) continue;
+          const m = maps[undoOf(t)], from = tr.map(x => m[x]), k = key(from);
+          if (seen.has(k)) continue;
+          const p = [t, ...path];
+          seen.set(k, p);
+          next.push({ tr: from, path: p });
+        }
+        frontier = next;
+      }
+      for (const [k, p] of seen) { if (!table.has(k)) table.set(k, []); table.get(k).push({ alg, p }); }
+    }
+    for (const list of table.values()) list.sort((a, b) => a.p.length - b.p.length);
+    return (wingModel = { slots, stickerSlot, fr, key, unmatched, table, ident });
+  }
+  // For each side-piece spot: the name of the piece that belongs there, the piece that's there, and where it goes.
+  function wingState(S, st, model) {
+    const mids = S.edges.map(([a, m]) => { const o = {}; for (const i of m) o[st[i]] = S.slots[i].n; return o; });
+    const name = [], content = [];
+    model.slots.forEach(({ w, d }, id) => {
+      const m = mids[id >> 1], cs = Object.keys(m).map(Number).sort((a, b) => a - b);
+      name.push(`${cs[0]}-${cs[1]}:${det3(m[cs[0]], m[cs[1]], d)}`);
+      const [p, q] = st[w[0]] < st[w[1]] ? w : [w[1], w[0]];
+      content.push(`${st[p]}-${st[q]}:${det3(S.slots[p].n, S.slots[q].n, d)}`);
+    });
+    return { name, content, target: content.map(c => name.indexOf(c)) };
+  }
+  const isOddPerm = p => {
+    const seen = [];
+    let odd = false;
+    for (let i = 0; i < p.length; i++) {
+      if (seen[i]) continue;
+      let len = 0;
+      for (let x = i; !seen[x]; x = p[x]) { seen[x] = true; len++; }
+      if (len % 2 === 0) odd = !odd;
+    }
+    return odd;
+  };
+  const cycle3 = (p, x, y, z) => { const n = p.slice(); n[y] = p[x]; n[z] = p[y]; n[x] = p[z]; return n; };
+  // Shortest list of three-way swaps that puts every piece home; a swap fixes at most three pieces.
+  function planWings(p) {
+    const left = q => q.reduce((n, v, i) => n + (v !== i), 0), M = p.map((v, i) => v === i ? -1 : i).filter(i => i >= 0);
+    const extra = [];
+    for (let i = 0; i < p.length && extra.length < 3; i++) if (p[i] === i && !extra.some(e => e >> 1 === i >> 1)) extra.push(i);
+    const pool = [...M, ...extra], ops = [];
+    for (let i = 0; i < pool.length; i++) for (let j = i + 1; j < pool.length; j++) for (let k = j + 1; k < pool.length; k++) {
+      const [x, y, z] = [pool[i], pool[j], pool[k]];
+      if (x >> 1 === y >> 1 || x >> 1 === z >> 1 || y >> 1 === z >> 1) continue;
+      ops.push([x, y, z], [x, z, y]);
+    }
+    let nodes = 0;
+    const dfs = (q, d) => {
+      for (const o of ops) {
+        if (++nodes > 2e6) return null;
+        const n = cycle3(q, ...o), l = left(n);
+        if (l === 0) return [o];
+        if (d > 1 && l <= 3 * (d - 1)) { const r = dfs(n, d - 1); if (r) return [o, ...r]; }
+      }
+      return null;
+    };
+    for (let d = 1; d <= 5; d++) { const r = dfs(p, d); if (r) return r[0]; }
+    return null;
+  }
+  function edgeHint5(S, st, b) {
+    const model = wingTables(S), { fr, table, key, unmatched } = model, w = wings5(S, st), M = unmatched(st), info = wingState(S, st, model);
+    const movesOf = e => [...movesIn(fr, e.p.join(' ')), ...movesIn(fr, e.alg)];
+    let pick = null;
+    // Plenty unsolved: take the first swap that helps most, with the fewest set-up turns.
+    if (M.length > 6) {
+      let bestGain = 0, tried = 0;
+      search: for (let len = 0; len <= 4; len++) {
+        for (let i = 0; i < M.length; i++) for (let j = i + 1; j < M.length; j++) for (let k = j + 1; k < M.length; k++) {
+          for (const e of table.get(key([M[i], M[j], M[k]])) || []) {
+            if (e.p.length !== len) continue;
+            if (++tried > 4000) break search;
+            const g = wings5(S, S.apply(st, movesOf(e))) - w;
+            if (g > bestGain) { bestGain = g; pick = e; if (g >= 2) break search; }
+          }
+        }
+        if (pick) break;
+      }
+    }
+    if (!pick && isOddPerm(info.target)) {
+      // The odd case: swap an edge's two side pieces, choosing the set-up that leaves the most in place.
+      const seqs = [[]];
+      for (const x of OUTER_TURNS) { seqs.push([x]); for (const y of OUTER_TURNS) if (x[0] !== y[0]) seqs.push([x, y]); }
+      let top = -1, set = null;
+      const flip = movesIn(fr, FLIP_ALG);
+      for (const q of seqs) {
+        const n = wings5(S, S.apply(st, [...movesIn(fr, q.join(' ')), ...flip]));
+        if (n > top) { top = n; set = q; }
+      }
+      const phases = [{ frame: fr, moves: movesIn(fr, FLIP_ALG), cap: 'Part 2: swap the top front edge\'s side pieces' }];
+      if (set.length) phases.unshift({ frame: fr, moves: movesIn(fr, set.join(' ')), cap: 'Part 1: bring the edge to the top front with outer turns' });
+      return { lesson: 5, phases, glow: M.flatMap(x => model.slots[x].w),
+        text: `The side pieces left can't be finished with the usual swaps: that only happens on bigger cubes, so an edge's two side pieces need swapping. Hold ${cname(b.of(fr.up))} on top, ${cname(b.of(fr.front))} in front, then do the moves below.` };
+    }
+    if (!pick) {
+      const o = planWings(info.target);
+      if (!o) return null;
+      const c = info.content.slice(), [x, y, z] = o, sig = (n, t) => n.map((a, i) => a + '=' + t[i]).sort().join();
+      c[y] = info.content[x]; c[z] = info.content[y]; c[x] = info.content[z];
+      const want = sig(info.name, c);
+      for (const e of table.get(key(o)) || []) {
+        const k = wingState(S, S.apply(st, movesOf(e)), model);
+        if (sig(k.name, k.content) === want) { pick = e; break; }
+      }
+      if (!pick) return null;
+    }
+    const set = movesIn(fr, pick.p.join(' ')), alg = movesIn(fr, pick.alg), all = [...set, ...alg], after = S.apply(st, all);
+    const trace = S.apply(model.ident, all), fresh = [];
+    // Side pieces that join an edge after this swap but weren't joined before it: these glow where they are now.
+    S.edges.forEach(([a, m, c]) => { for (const v of [a, c]) if (v.every((i, n) => after[i] === after[m[n]]) && M.includes(model.stickerSlot.get(trace[v[0]]))) fresh.push(...v.map(i => trace[i])); });
+    const phases = [{ frame: fr, moves: alg, cap: 'Part 2: swap the side pieces' }];
+    if (set.length) phases.unshift({ frame: fr, moves: set, cap: 'Part 1: line the pieces up with outer turns' });
+    const prep = !fresh.length;
+    return { phases, glow: prep ? M.flatMap(x => model.slots[x].w) : fresh,
+      text: (prep ? 'These side pieces need one swap to get them ready. ' : 'The glowing side piece joins its edge. ') + `Hold ${cname(b.of(fr.up))} on top, ${cname(b.of(fr.front))} in front, then do the moves below.` };
+  }
+  function hintBigCore(S, st) {
+    const b = (S.n === 4 ? status4 : status5)(S, st), stage = b.stage;
     if (stage === 99) return { stage, counts: b.counts, phases: [], glow: [], text: 'The cube is solved. Scramble it to go again.' };
-    const r = (stage < 3 ? centerHint4 : stage === 3 ? edgeHint4 : reducedHint4)(S, st, b);
-    const head = `Step ${stage + 1}, ${STAGES4[stage].name.toLowerCase()}.`;
+    const r = (stage < 3 ? centerHintBig : stage === 3 ? (S.n === 4 ? edgeHint4 : edgeHint5) : reducedHintBig)(S, st, b);
+    const head = `Step ${stage + 1}, ${(S.n === 4 ? STAGES4 : STAGES5)[stage].name.toLowerCase()}.`;
     if (!r) return { stage, counts: b.counts, phases: null, glow: [], text: `${head} I couldn't find a short hint from here. The lesson for this step explains what to look for.` };
     return { stage, counts: b.counts, lesson: r.lesson, phases: r.phases, glow: r.glow, text: `${head} ${r.text}` };
   }
-  function findHint4() {
-    const S = sim(4), { st, meshes } = readSim(S), h = hint4Core(S, st);
+  function findHintBig() {
+    const S = sim(cube.n), { st, meshes } = readSim(S), h = hintBigCore(S, st);
     return { ...h, meshes: h.glow.map(i => meshes[i]).filter(Boolean) };
   }
 
@@ -3884,9 +4175,8 @@ img { max-width: 100%; }
   }
   buildStages();
   function renderStages() {
-    if (cube.n === 5) return;
     let counts, stage;
-    if (cube.n === 4) { const S = sim(4), b = status4(S, readSim(S).st); counts = b.counts; stage = b.stage; }
+    if (cube.n >= 4) { const S = sim(cube.n), b = (cube.n === 4 ? status4 : status5)(S, readSim(S).st); counts = b.counts; stage = b.stage; }
     else if (cube.n === 2) { const S = sim(2), r = best2(S, readSim(S).st).r; counts = [r.white, r.home, r.up]; stage = r.stage; }
     else { const st = readState(); counts = stageCounts(st, layout(st)); stage = stageOf(counts); }
     const list = stageList();
@@ -3904,9 +4194,9 @@ img { max-width: 100%; }
     return d > 0 ? 'top layer' : d < 0 ? 'bottom layer' : 'middle layer';
   }
   function getHint() {
-    if (isSpeed() || state.scrambling || anim || queue.length || cube.n === 5) return;
+    if (isSpeed() || state.scrambling || anim || queue.length) return;
     if (cube.n !== 3) {
-      const h = cube.n === 2 ? findHint2() : findHint4();
+      const h = cube.n === 2 ? findHint2() : findHintBig();
       hint.result = h; hint.pos = 0; hint.stale = false;
       hint.flat = (h.phases || []).flatMap((p, pi) => p.moves.map(m => ({ ...m, phase: pi })));
       setHighlight(h.meshes);
