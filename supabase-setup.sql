@@ -143,12 +143,12 @@ revoke all on function public.leaderboard_daily(date, int) from public;
 grant execute on function public.leaderboard_daily(date, int) to anon, authenticated;
 
 -- ===== Update 4: cube sizes =====
--- Each solve records its cube size (2, 3, 4 or 5). Older rows are 3×3. Competition and daily solves
+-- Each solve records its cube size (2, 3, 4 or 5, or 1 for the pyramid). Older rows are 3×3. Competition and daily solves
 -- are 3×3 only, so the leaderboards never mix sizes.
 alter table public.solves add column if not exists size smallint not null default 3;
 alter table public.solves drop constraint if exists solves_size_check;
 alter table public.solves add constraint solves_size_check
-  check (size in (2, 3, 4, 5) and (size = 3 or (not competition and daily is null)));
+  check (size in (1, 2, 3, 4, 5) and (size = 3 or (not competition and daily is null)));
 
 -- "Delete my account": removes the signed-in person and, through the cascades above, all their data.
 create or replace function public.delete_my_account()

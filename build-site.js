@@ -9,7 +9,7 @@ const path = require('path');
 
 const SITE = 'https://deskcube.app/';
 const TITLE = 'Desk Cube – a free 3D puzzle cube, timer and lessons';
-const DESC = 'Turn a 3D puzzle cube in your browser: 2×2 up to 5×5, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.';
+const DESC = 'Turn a 3D puzzle cube in your browser: 2×2 up to 5×5 and a pyramid, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.';
 
 // The artifact's own short title stays in index.html; the site gets a fuller one in its head.
 const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8').replace(/^<title>[^<]*<\/title>\n/, '');

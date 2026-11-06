@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>Desk Cube – a free 3D puzzle cube, timer and lessons</title>
-<meta name="description" content="Turn a 3D puzzle cube in your browser: 2×2 up to 5×5, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.">
+<meta name="description" content="Turn a 3D puzzle cube in your browser: 2×2 up to 5×5 and a pyramid, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.">
 <link rel="canonical" href="https://deskcube.app/">
 <meta name="theme-color" content="#f6f8f9" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#151d23" media="(prefers-color-scheme: dark)">
@@ -17,14 +17,14 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Desk Cube">
 <meta property="og:title" content="Desk Cube">
-<meta property="og:description" content="Turn a 3D puzzle cube in your browser: 2×2 up to 5×5, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.">
+<meta property="og:description" content="Turn a 3D puzzle cube in your browser: 2×2 up to 5×5 and a pyramid, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.">
 <meta property="og:url" content="https://deskcube.app/">
 <meta property="og:image" content="https://deskcube.app/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="A solved 3×3 cube beside the words Desk Cube">
 <meta name="twitter:card" content="summary_large_image">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Desk Cube","url":"https://deskcube.app/","description":"Turn a 3D puzzle cube in your browser: 2×2 up to 5×5, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.","applicationCategory":"GameApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"GBP"}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Desk Cube","url":"https://deskcube.app/","description":"Turn a 3D puzzle cube in your browser: 2×2 up to 5×5 and a pyramid, step-by-step lessons for beginners, a speed timer, a daily challenge, a leaderboard and replays you can share.","applicationCategory":"GameApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"GBP"}}</script>
 <!-- Cloudflare Web Analytics: visitor counts without cookies. Only the real site has it, so the Claude preview isn't counted. -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "1db7e9df27f34d1e9a63cfbecb6bc0c8"}'></script>
 <style>
@@ -416,14 +416,16 @@ img { max-width: 100%; }
   /* Learning / Speedcubing mode: speed mode hides every .learn-only element. */
   :root[data-mode="speed"] .learn-only { display: none !important; }
   /* Cube size: the trainer, the daily challenge and competitions are 3×3 only. */
-  :root[data-size="2"] .three-only, :root[data-size="4"] .three-only, :root[data-size="5"] .three-only { display: none !important; }
+  :root[data-size="1"] .three-only, :root[data-size="2"] .three-only, :root[data-size="4"] .three-only, :root[data-size="5"] .three-only { display: none !important; }
   /* Inner and wide turns are for the 4×4 and 5×5; middle slices for odd cubes. */
-  :root:not([data-size="4"]):not([data-size="5"]) .big-only { display: none !important; }
-  :root[data-size="2"] .odd-only, :root[data-size="4"] .odd-only { display: none !important; }
+  :root:not([data-size="1"]):not([data-size="4"]):not([data-size="5"]) .big-only { display: none !important; }
+  :root[data-size="1"] .odd-only, :root[data-size="2"] .odd-only, :root[data-size="4"] .odd-only { display: none !important; }
+  /* The pyramid (size 1) has its own turns: tips on u l r b, and no lesson or hints yet. */
+  :root[data-size="1"] .no-pyra, :root[data-size="1"] .big-only:not(.tip-turn) { display: none !important; }
   .size-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
   .size-row .size-label { color: var(--muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
-  .size-row .mode-switch { grid-template-columns: repeat(4, 1fr); }
-  .size-row .mode-switch button { font-family: var(--font-mono); }
+  .size-row .mode-switch { grid-template-columns: repeat(5, 1fr); }
+  .size-row .mode-switch button { font-family: var(--font-mono); padding: 5px 7px; min-width: 0; }
   .mode-switch { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
   .mode-switch button { border: 0; background: transparent; padding: 5px 12px; color: var(--muted); border-radius: 7px; }
   .mode-switch button[aria-checked="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
@@ -713,7 +715,7 @@ img { max-width: 100%; }
         <button role="radio" id="modeSpeed" aria-checked="false" title="Hide all learning help">Solving</button>
       </div>
       <button class="learn-btn" id="keysBtn" aria-controls="keysPanel" title="Show or hide the controls (?)">Controls</button>
-      <button class="learn-btn learn-only" id="learnBtn">Learn to solve</button>
+      <button class="learn-btn learn-only no-pyra" id="learnBtn">Learn to solve</button>
       <button class="theme-switch" id="themeBtn" role="switch" aria-checked="false" title="Switch between light and dark">
         <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
         <span>Dark</span>
@@ -794,12 +796,12 @@ img { max-width: 100%; }
         <li class="big-only" title="Hold 2 and press a face letter: only the layer just inside that face turns"><span class="kp-keys"><kbd>2</kbd>+<kbd>R</kbd></span><span>Inner</span></li>
         <li title="Tap Space during a timed solve to pause it; Enter resumes"><span class="kp-keys"><kbd>Space</kbd></span><span>Pause</span></li>
         <li title="Undo the last turn (also Ctrl+Z)"><span class="kp-keys"><kbd>⌫</kbd></span><span>Undo</span></li>
-        <li title="Flip the cube upside down (x2)"><span class="kp-keys"><kbd>V</kbd></span><span>Flip</span></li>
+        <li class="no-pyra" title="Flip the cube upside down (x2)"><span class="kp-keys"><kbd>V</kbd></span><span>Flip</span></li>
         <li title="Show or hide this panel"><span class="kp-keys"><kbd>?</kbd></span><span>Panel</span></li>
         <li title="Turn the whole cube left / right (y, y′)"><span class="kp-keys"><kbd>←</kbd><kbd>→</kbd></span><span>Turn</span></li>
         <li title="Tip the whole cube up / down (x, x′)"><span class="kp-keys"><kbd>↑</kbd><kbd>↓</kbd></span><span>Tip</span></li>
         <li title="Zoom in / out (or scroll); 0 resets"><span class="kp-keys"><kbd>+</kbd><kbd>−</kbd></span><span>Zoom</span></li>
-        <li class="learn-only" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
+        <li class="learn-only no-pyra" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
     </div>
   </nav>
   <dialog class="confirm" id="resetDialog" aria-labelledby="resetTitle">
@@ -1004,8 +1006,8 @@ img { max-width: 100%; }
 
   <div class="stage" id="stage">
     <div class="viewer" id="viewer">
-      <div class="v-head"><span>View</span><span class="kp-keys" title="Arrow keys turn the whole cube"><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></span><button class="v-toggle" id="viewToggle" aria-expanded="false" aria-controls="viewer">Show</button></div>
-      <div class="v-maps">
+      <div class="v-head"><span>View</span><span class="kp-keys no-pyra" title="Arrow keys turn the whole cube"><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></span><button class="v-toggle" id="viewToggle" aria-expanded="false" aria-controls="viewer">Show</button></div>
+      <div class="v-maps no-pyra">
         <div class="v-map"><div class="v-sq" id="mapTop"></div><span class="v-cap">Top layer</span></div>
         <div class="v-map"><div class="v-sq" id="mapBottom"></div><span class="v-cap">Bottom layer</span></div>
       </div>
@@ -1047,15 +1049,16 @@ img { max-width: 100%; }
 
   <aside id="rail">
     <div class="size-row">
-      <span class="size-label" id="sizeLabel">Cube</span>
+      <span class="size-label" id="sizeLabel">Puzzle</span>
       <div class="mode-switch" id="sizePick" role="radiogroup" aria-labelledby="sizeLabel">
         <button role="radio" data-size="2" aria-checked="false" title="2×2: corners only">2×2</button>
         <button role="radio" data-size="3" aria-checked="true" title="3×3: the classic cube, with hints and the trainer">3×3</button>
         <button role="radio" data-size="4" aria-checked="false" title="4×4: wide turns move the outer two layers">4×4</button>
         <button role="radio" data-size="5" aria-checked="false" title="5×5: wide, inner and middle layers">5×5</button>
+        <button role="radio" data-size="1" aria-checked="false" title="Pyramid: a four-sided puzzle" aria-label="Pyramid">▲</button>
       </div>
     </div>
-    <div class="tabs learn-only" role="tablist">
+    <div class="tabs learn-only no-pyra" role="tablist">
       <button role="tab" id="tab-practice" aria-selected="true" aria-controls="panel-practice">Practice</button>
       <button role="tab" id="tab-lesson" aria-selected="false" aria-controls="panel-lesson">Lesson</button>
       <button role="tab" id="tab-trainer" class="three-only" aria-selected="false" aria-controls="panel-trainer">Trainer</button>
@@ -1146,7 +1149,7 @@ img { max-width: 100%; }
       <button id="undoBtn">Undo</button>
       <button id="resetBtn">Reset</button>
       <button id="giveUpCompBtn" class="wide" hidden>Give up this solve (DNF)</button>
-      <button id="flipBtn" class="wide" title="Turn the whole cube upside down (x2), key V">Flip upside down <kbd>V</kbd></button>
+      <button id="flipBtn" class="wide no-pyra" title="Turn the whole cube upside down (x2), key V">Flip upside down <kbd>V</kbd></button>
       <button id="viewBtn" title="Return to the starting camera angle">Reset view</button>
     </div>
 
@@ -1177,7 +1180,7 @@ img { max-width: 100%; }
 
     <p class="support" id="supportBox" hidden><span>Desk Cube is free with no ads.</span> <a class="tip-btn" id="kofiLink" target="_blank" rel="noopener">Leave a tip ☕</a></p>
 
-    <section class="coach learn-only">
+    <section class="coach learn-only no-pyra">
       <div class="coach-head">
         <h2>Solving steps</h2>
         <button id="hintBtn" class="primary" title="Show the next moves (H)">Hint <kbd>H</kbd></button>
@@ -1232,13 +1235,18 @@ img { max-width: 100%; }
   // ---------- Scene ----------
   // Cube size: 2, 3 or 4. Pieces sit at whole-number coordinates on odd cubes and at halves on
   // even ones (±0.5, ±1.5), so the outer layers are always at ±(n − 1) / 2.
+  // Size 1 stands for the pyramid: everything saved or shared says "size", so it fits alongside the cubes.
+  const PYRA = 1;
+  const shortName = n => n === PYRA ? 'pyramid' : `${n}×${n}`;
+  const puzzleName = n => n === PYRA ? 'pyramid' : `${n}×${n} cube`;
+  const brandName = n => n === PYRA ? 'Pyramid practice puzzle' : `${n}×${n} practice cube`;
   const cube = { n: 3 };
-  try { const n = +localStorage.getItem('deskcube-size'); if (n === 2 || n === 4 || n === 5) cube.n = n; } catch (e) {}
+  try { const n = +localStorage.getItem('deskcube-size'); if (n === PYRA || n === 2 || n === 4 || n === 5) cube.n = n; } catch (e) {}
   document.documentElement.dataset.size = cube.n;
   const half = () => (cube.n - 1) / 2;
   const snapC = v => cube.n % 2 ? Math.round(v) : Math.floor(v) + 0.5;
   // The camera backs off for bigger cubes so every size fills about the same space (the 2×2 a little bigger).
-  const sizeScale = () => cube.n === 2 ? 0.8 : cube.n / 3;
+  const sizeScale = () => cube.n === 2 || cube.n === PYRA ? 0.8 : cube.n / 3;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   stage.prepend(renderer.domElement);
@@ -1266,6 +1274,13 @@ img { max-width: 100%; }
     accountSettingsChanged();
   }
   function placeCamera() {
+    if (cube.n === PYRA) {
+      camFly = null;
+      camera.up.copy(pyraUp());
+      camera.position.copy(pyraHome()).setLength(view.r);
+      camera.lookAt(0, 0, 0);
+      return;
+    }
     // Corner-on view: 45° around, looking straight down the top-front-right corner.
     const az = Math.PI / 4, el = Math.atan(1 / Math.SQRT2), r = view.r;
     camFly = null;
@@ -1305,6 +1320,10 @@ img { max-width: 100%; }
     camera.position.setLength(view.r);
   }
 
+  function flyHome() {
+    if (cube.n === PYRA) flyTo(pyraHome(), pyraUp());
+    else flyTo(new THREE.Vector3(1, 1, 1), new THREE.Vector3(0, 1, 0));
+  }
   // Smooth camera flights between views. dir points from the cube to the camera.
   let camFly = null;
   const flyM = new THREE.Matrix4(), ORIGIN = new THREE.Vector3();
@@ -1417,6 +1436,8 @@ img { max-width: 100%; }
     if (hint.result) { hint.result = null; renderHint(); }
     cubies = []; bodies = []; stickers = [];
     core.quaternion.identity();
+    pyraCore.visible = cube.n === PYRA;
+    if (cube.n === PYRA) { buildPyramid(); return; }
     const H = half();
     for (let x = -H; x <= H; x++) for (let y = -H; y <= H; y++) for (let z = -H; z <= H; z++) {
       if (Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) !== H) continue;   // inner pieces can't be seen
@@ -1435,6 +1456,113 @@ img { max-width: 100%; }
       scene.add(cubie); cubies.push(cubie);
     }
     paintMaps();
+  }
+
+  // ---------- Pyramid ----------
+  // A tetrahedron cut into thirds, sitting in the cube's corners so each face's normal rounds to its own
+  // (±1, ±1, ±1) and the solved check works unchanged. Pieces: 4 tips, 6 edges (both small tetrahedra)
+  // and 4 centers (octahedra). A corner turn is 120° and moves the top two layers there; a tip turn just its tip.
+  const PYRA_DIRS = [[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]].map(v => new THREE.Vector3(...v).normalize());
+  const PYRA_R = 3 * Math.sqrt(6) / 4;   // edge length 3
+  const PYRA_V = PYRA_DIRS.map(d => d.clone().multiplyScalar(PYRA_R));
+  const PYRA_TIP_AT = 1.02, PYRA_BIG_AT = 0.2;   // how far along a corner's axis its tip and second layer begin
+  const PYRA_COLOR = ['D', 'R', 'F', 'B'];       // the face opposite each corner
+  const pyraUp = () => PYRA_DIRS[0];
+  // Home: mostly the front face, turned a little so a second face shows, from slightly above.
+  const pyraHome = () => PYRA_DIRS[3].clone().negate().addScaledVector(PYRA_DIRS[2], -0.45).addScaledVector(PYRA_DIRS[0], 0.25).normalize();
+  let pyraSlots = [];
+  function pyraPieces() {
+    const third = (i, j) => PYRA_V[j].clone().sub(PYRA_V[i]).divideScalar(3), out = [];
+    for (let i = 0; i < 4; i++) {
+      const others = [0, 1, 2, 3].filter(j => j !== i), at = PYRA_V[i];
+      out.push(['tip', [at, ...others.map(j => at.clone().add(third(i, j)))]]);
+      const ring = others.map(j => at.clone().add(third(i, j)));
+      const far = [[0, 1], [1, 2], [0, 2]].map(([a, b]) => at.clone().add(third(i, others[a])).add(third(i, others[b])));
+      out.push(['center', [...ring, ...far]]);
+      for (const j of others) {
+        if (j < i) continue;
+        const p = at.clone().add(third(i, j)), rest = others.filter(k => k !== j);
+        out.push(['edge', [p, p.clone().add(third(i, j)), ...rest.map(k => p.clone().add(third(i, k)))]]);
+      }
+    }
+    return out;
+  }
+  const pyraBodyMat = bodyMat;
+  // The hidden middle of the puzzle, so you can't see through it while a corner turns.
+  const pyraCore = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 12), bodyMat);
+  pyraCore.visible = false;
+  scene.add(pyraCore);
+  function buildPyramid() {
+    pyraSlots = [];
+    for (const [, points] of pyraPieces()) {
+      const c = points.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(points.length);
+      const local = points.map(p => p.clone().sub(c));
+      // Faces: every triple with all the other points on one side.
+      const faces = [];
+      for (let i = 0; i < local.length; i++) for (let j = i + 1; j < local.length; j++) for (let k = j + 1; k < local.length; k++) {
+        const n = local[j].clone().sub(local[i]).cross(local[k].clone().sub(local[i]));
+        if (n.length() < 1e-6) continue;
+        n.normalize();
+        let pos = 0, neg = 0;
+        local.forEach((q, m) => { if (m === i || m === j || m === k) return; const d = q.clone().sub(local[i]).dot(n); if (d > 1e-6) pos++; else if (d < -1e-6) neg++; });
+        if (pos && neg) continue;
+        if (pos) { n.negate(); faces.push([k, j, i, n]); } else faces.push([i, j, k, n]);
+      }
+      const cubie = new THREE.Group();
+      cubie.position.copy(c);
+      const pos = [];
+      for (const [a, b, e] of faces) for (const m of [a, b, e]) { const q = local[m].clone().multiplyScalar(0.985); pos.push(q.x, q.y, q.z); }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.computeVertexNormals();
+      const body = new THREE.Mesh(geo, pyraBodyMat);
+      cubie.add(body); bodies.push(body);
+      // A sticker on each face that lies on the outside of the pyramid.
+      for (const [a, b, e, n] of faces) {
+        const outer = PYRA_DIRS.findIndex(d => d.dot(n) < -0.999);
+        if (outer < 0 || Math.abs(c.clone().add(local[a]).dot(PYRA_DIRS[outer]) + PYRA_R / 3) > 1e-6) continue;
+        const mid = local[a].clone().add(local[b]).add(local[e]).divideScalar(3);
+        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n), inv = q.clone().invert();
+        const corners = [a, b, e].map(m => local[m].clone().sub(mid).multiplyScalar(0.78).applyQuaternion(inv));
+        const shape = new THREE.Shape(), r = 0.14;
+        corners.forEach((p, m) => {
+          const prev = corners[(m + 2) % 3], next = corners[(m + 1) % 3];
+          const from = p.clone().lerp(prev, r), to = p.clone().lerp(next, r);
+          if (m === 0) shape.moveTo(from.x, from.y); else shape.lineTo(from.x, from.y);
+          shape.quadraticCurveTo(p.x, p.y, to.x, to.y);
+        });
+        shape.closePath();
+        const tri = new THREE.ShapeGeometry(shape, 3), uv = tri.attributes.uv, tp = tri.attributes.position;
+        for (let m = 0; m < uv.count; m++) uv.setXY(m, tp.getX(m) * 1.1 + 0.5, tp.getY(m) * 1.1 + 0.42);
+        const st = new THREE.Mesh(tri, stickerMats[PYRA_COLOR[outer]]);
+        st.quaternion.copy(q);
+        st.position.copy(mid).multiplyScalar(0.985).addScaledVector(n, 0.012);
+        st.userData.color = PYRA_COLOR[outer];
+        cubie.add(st); stickers.push(st);
+      }
+      scene.add(cubie); cubies.push(cubie);
+      pyraSlots.push(c.clone());
+    }
+  }
+  const pyraSnap = p => pyraSlots.reduce((a, b) => a.distanceToSquared(p) <= b.distanceToSquared(p) ? a : b);
+  const pyraSel = (pv, tip) => cubies.filter(c => c.position.dot(PYRA_DIRS[pv]) > (tip ? PYRA_TIP_AT : PYRA_BIG_AT));
+  // Letters follow the view: U is the corner highest on screen, B the one furthest away, L and R the other two.
+  function pyraFrame() {
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion), right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    const toCam = camera.position.clone().normalize(), rest = [0, 1, 2, 3];
+    const take = score => { const best = rest.reduce((a, b) => score(b) > score(a) ? b : a); rest.splice(rest.indexOf(best), 1); return best; };
+    const U = take(i => PYRA_DIRS[i].dot(up)), B = take(i => -PYRA_DIRS[i].dot(toCam)), R = take(i => PYRA_DIRS[i].dot(right)), L = rest[0];
+    return { U, B, R, L };
+  }
+  function decodePyra(m) {
+    const k = m[0].toUpperCase();
+    if (!'ULRB'.includes(k) || (m[1] && m[1] !== "'")) return null;
+    // Clockwise, looking at the corner from outside.
+    return { axis: 'p', layer: 1, pv: pyraFrame()[k], tip: m[0] !== k, angle: (m[1] === "'" ? 1 : -1) * 2 * Math.PI / 3 };
+  }
+  function pyraLabel(pv, tip, sign) {
+    const fr = pyraFrame(), k = 'ULRB'.split('').find(x => fr[x] === pv);
+    return (tip ? k.toLowerCase() : k) + (sign > 0 ? "'" : '');
   }
 
   // ---------- Notation ----------
@@ -1471,6 +1599,7 @@ img { max-width: 100%; }
   // On the 4×4 and 5×5, "2R" is the inner layer next to R on its own. Middle slices (M E S) exist only on
   // odd cubes and wide turns only from the 3×3 up; those come back null on the other sizes.
   function decode(m, fr, n = cube.n) {
+    if (n === PYRA) return decodePyra(m);
     const inner = n >= 4 && m[0] === '2';
     if (inner) m = m.slice(1);
     if (!LETTERS[m[0]]) return null;
@@ -1595,10 +1724,10 @@ img { max-width: 100%; }
   function startNext() {
     const item = queue.shift();
     if (!item.quiet && item.layer !== null) playClick(item.scramble || item.replay);
-    const { axis, layer, angle } = item;
+    const { axis, layer, angle } = item, isPyra = item.pv !== undefined;
     pivot.rotation.set(0, 0, 0);
     pivot.updateMatrixWorld();
-    const sel = cubies.filter(c => turnsPiece(item, snapC(c.position[axis])));
+    const sel = isPyra ? pyraSel(item.pv, item.tip) : cubies.filter(c => turnsPiece(item, snapC(c.position[axis])));
     if (layer === null) sel.push(core);
     for (const c of sel) pivot.attach(c);
     // A replay turn stretches over most of the time until the next one, so the solve flows instead of snapping;
@@ -1606,18 +1735,24 @@ img { max-width: 100%; }
     const base = item.replay ? Math.min(450, Math.max(90, item.gap * 0.85)) / replay.speed : item.fast ? Math.min(55, turnMs) : turnMs;
     // Keep up with fast typing (or a fast replay): the more turns are waiting, the quicker each one plays.
     const waiting = item.user || item.replay ? queue.filter(q => q.user || q.replay).length : 0;
-    const dur = reduceMotion ? 0 : base * (!item.replay && Math.abs(angle) > Math.PI / 2 + 0.01 ? 1.4 : 1) / (1 + waiting);
-    anim = { item, sel, axis, angle, t0: performance.now(), dur };
+    const dur = reduceMotion ? 0 : base * (!item.replay && !isPyra && Math.abs(angle) > Math.PI / 2 + 0.01 ? 1.4 : 1) / (1 + waiting);
+    anim = { item, sel, axis, angle, t0: performance.now(), dur, vec: isPyra ? PYRA_DIRS[item.pv] : null };
   }
 
+  // Cube layers turn about x, y or z; pyramid corners about their own axis.
+  function setPivot(a) {
+    if (anim.vec) pivot.setRotationFromAxisAngle(anim.vec, a);
+    else pivot.rotation[anim.axis] = a;
+  }
   const snapM = new THREE.Matrix4();
   function finishAnim() {
     // A layer still held under a finger goes back where it was (a reset or a new scramble interrupts it).
     if (anim.live) { anim.angle = 0; if (drag) drag.live = null; }
-    pivot.rotation[anim.axis] = anim.angle;
+    setPivot(anim.angle);
     pivot.updateMatrixWorld();
     for (const c of anim.sel) {
       scene.attach(c);
+      if (anim.vec) { c.position.copy(pyraSnap(c.position)); c.quaternion.normalize(); continue; }
       if (c === core) c.position.set(0, 0, 0);
       else c.position.set(snapC(c.position.x), snapC(c.position.y), snapC(c.position.z));
       snapM.makeRotationFromQuaternion(c.quaternion);
@@ -1635,7 +1770,7 @@ img { max-width: 100%; }
     if (anim && !anim.live) {
       const p = anim.dur ? Math.min(1, (now - anim.t0) / anim.dur) : 1;
       const e = 1 - Math.pow(1 - p, 3), from = anim.from || 0;
-      pivot.rotation[anim.axis] = from + (anim.angle - from) * e;
+      setPivot(from + (anim.angle - from) * e);
       if (p >= 1) finishAnim();
     }
     if (trainer.phase === 'running') $('trTime').textContent = fmt(now - trainer.start);
@@ -1822,6 +1957,17 @@ img { max-width: 100%; }
   // Face turns (11 on the 2×2, 22 on the 3×3, 40 on the 4×4 with wide u, r and f, 60 on the 5×5 with all six wide), never
   // the same turn twice in a row or three on one axis. `rand` can be seeded (daily challenge).
   function scrambleSeq(rand = Math.random, n = cube.n) {
+    if (n === PYRA) {
+      // Eleven corner turns, never the same corner twice running, then each tip any way round.
+      const seq = [];
+      while (seq.length < 11) {
+        const f = 'ULRB'[Math.floor(rand() * 4)];
+        if (seq.length && seq[seq.length - 1][0] === f) continue;
+        seq.push(f + ['', "'"][Math.floor(rand() * 2)]);
+      }
+      for (const t of 'ulrb') { const way = ['', "'", null][Math.floor(rand() * 3)]; if (way !== null) seq.push(t + way); }
+      return seq;
+    }
     const axisOf = { U: 'y', D: 'y', R: 'x', L: 'x', F: 'z', B: 'z', u: 'y', d: 'y', r: 'x', l: 'x', f: 'z', b: 'z' };
     const faces = n === 5 ? 'UDRLFBudrlfb' : n === 4 ? 'UDRLFBurf' : 'UDRLFB', seq = [], len = { 2: 11, 3: 22, 4: 40, 5: 60 }[n];
     let lastAxis = null, prevFace = null;
@@ -1861,13 +2007,13 @@ img { max-width: 100%; }
     queue = [];
     buildCube();
     // Swing the camera back to the starting corner view too, like Reset view.
-    flyTo(new THREE.Vector3(1, 1, 1), new THREE.Vector3(0, 1, 0));
+    flyHome();
     Object.assign(state, { mode: 'idle', moves: 0, history: [], scrambling: false, scrambleText: '', rec: null });
     clearPaused();
     lesson.ready = false;
     stopTrainer();
     renderTime(0);
-    setStatus('Solved cube. Press Scramble to start a timed solve.');
+    setStatus(`Solved ${cube.n === 3 ? 'cube' : puzzleName(cube.n)}. Press Scramble to start a timed solve.`);
     renderPanel();
   }
 
@@ -1960,6 +2106,7 @@ img { max-width: 100%; }
     drag.done = true;
     const len = Math.hypot(dx, dy), d = { x: dx / len, y: dy / len };
     const from = toScreen(drag.point);
+    if (cube.n === PYRA) { startPyraDrag(dx, dy, d, from); return; }
     let best = null;
     for (const axis of ['x', 'y', 'z']) {
       if (axis === drag.normalAxis) continue;
@@ -1986,6 +2133,31 @@ img { max-width: 100%; }
     moveLive(dx, dy);
   });
 
+  // Pyramid: of the corners this piece turns with, take the one whose turn best matches the drag.
+  function startPyraDrag(dx, dy, d, from) {
+    if (state.scrambling || anim || state.mode === 'replay' || state.mode === 'paused') return;
+    const pos = new THREE.Vector3(), p = drag.point;
+    drag.cubie.getWorldPosition(pos);
+    const onTip = PYRA_DIRS.findIndex(v => pos.dot(v) > PYRA_TIP_AT);
+    let best = null;
+    PYRA_DIRS.forEach((v, pv) => {
+      if (pos.dot(v) <= PYRA_BIG_AT) return;
+      const tangent = new THREE.Vector3().crossVectors(v, p);
+      const r = tangent.length();
+      if (r < 1e-3) return;
+      const to = toScreen(p.clone().addScaledVector(tangent.divideScalar(r), 0.5));
+      const sx = to.x - from.x, sy = to.y - from.y, sl = Math.hypot(sx, sy) || 1, score = Math.abs((d.x * sx + d.y * sy) / sl);
+      if (!best || score > best.score) best = { pv, score, ux: sx / sl, uy: sy / sl, sl, r };
+    });
+    if (!best) return;
+    const tip = onTip === best.pv, sel = pyraSel(best.pv, tip);
+    pivot.rotation.set(0, 0, 0);
+    pivot.updateMatrixWorld();
+    for (const c of sel) pivot.attach(c);
+    anim = { live: true, item: null, sel, axis: 'p', vec: PYRA_DIRS[best.pv], angle: 0 };
+    drag.live = { pyra: true, pv: best.pv, tip, axis: 'p', ux: best.ux, uy: best.uy, pxPerRad: 2 * best.sl * Math.max(0.35, best.r), at: performance.now(), v: 0, last: null };
+    moveLive(dx, dy);
+  }
   function moveLive(dx, dy) {
     const L = drag.live;
     if (!anim || !anim.live) return;
@@ -1998,7 +2170,7 @@ img { max-width: 100%; }
     }
     L.last = { t: now, along };
     anim.angle = Math.max(-Math.PI * 1.1, Math.min(Math.PI * 1.1, along / L.pxPerRad));
-    pivot.rotation[anim.axis] = anim.angle;
+    setPivot(anim.angle);
   }
 
   // Letting go: the layer finishes the nearest quarter (or half) turn, or springs back if it hardly moved.
@@ -2007,22 +2179,26 @@ img { max-width: 100%; }
     const L = drag && drag.live;
     drag && (drag.live = null);
     if (!L || !anim || !anim.live) return;
-    const Q = Math.PI / 2, a = anim.angle;
+    const Q = L.pyra ? 2 * Math.PI / 3 : Math.PI / 2, a = anim.angle;
     // A flick that stopped moving a while ago doesn't count as one.
     const v = L.last && performance.now() - L.last.t < 80 ? L.v : 0;
     let q = Math.round(a / Q);
     if (!q && a && (Math.abs(a) > Q * 0.18 || (Math.abs(v) > 0.2 && Math.sign(v) === Math.sign(a)))) q = Math.sign(a);
-    q = Math.max(-2, Math.min(2, q));
+    const most = L.pyra ? 1 : 2;   // a pyramid corner's "half turn" is just the other way round
+    q = Math.max(-most, Math.min(most, q));
     let item = null;
     if (q && !state.scrambling && state.mode !== 'replay' && state.mode !== 'paused') {
-      const quarter = labelFor(L.axis, L.layer, Math.sign(q), viewFrame());
-      item = { label: Math.abs(q) === 2 ? quarter.replace("'", '') + '2' : quarter, axis: L.axis, layer: L.layer, angle: q * Q, user: true, at: L.at, madeAt: performance.now() };
+      if (L.pyra) item = { label: pyraLabel(L.pv, L.tip, q), axis: 'p', layer: 1, pv: L.pv, tip: L.tip, angle: q * Q, user: true, at: L.at, madeAt: performance.now() };
+      else {
+        const quarter = labelFor(L.axis, L.layer, Math.sign(q), viewFrame());
+        item = { label: Math.abs(q) === 2 ? quarter.replace("'", '') + '2' : quarter, axis: L.axis, layer: L.layer, angle: q * Q, user: true, at: L.at, madeAt: performance.now() };
+      }
       if (state.mode === 'ready' || state.mode === 'inspect') startTimer(L.at);
       playClick(false);
     }
     const target = item ? q * Q : 0;
     const dur = reduceMotion ? 0 : turnMs * Math.min(1.4, Math.abs(target - a) / Q);
-    anim = { item, sel: anim.sel, axis: L.axis, angle: target, from: a, t0: performance.now(), dur };
+    anim = { item, sel: anim.sel, axis: L.axis, vec: anim.vec, angle: target, from: a, t0: performance.now(), dur };
   }
 
   function endDrag(e) {
@@ -2387,7 +2563,7 @@ img { max-width: 100%; }
     },
   ];
   const LESSONS = { 2: LESSON2, 3: LESSON, 4: LESSON4, 5: LESSON5 };
-  function steps() { return LESSONS[cube.n]; }
+  function steps() { return LESSONS[cube.n] || LESSON; }
   const EXAMPLE_NOTE = 'The example starts from a new scramble with the earlier steps already done. Press <b>Play</b> to watch this step solved part by part, or <b>Next move</b> to go one turn at a time. <b>New example</b> deals a different cube.';
 
   // Each size remembers its own step.
@@ -2461,7 +2637,7 @@ img { max-width: 100%; }
 
   // Turn a layer instantly, without animating (sets up lesson examples).
   function turnNow(m) {
-    queue.unshift({ axis: m.axis, layer: m.layer, angle: m.angle, wide: m.wide, quiet: true });
+    queue.unshift({ axis: m.axis, layer: m.layer, angle: m.angle, wide: m.wide, pv: m.pv, tip: m.tip, quiet: true });
     startNext();
     finishAnim();
   }
@@ -2664,7 +2840,7 @@ img { max-width: 100%; }
     showTab('lesson');
     if (window.matchMedia('(max-width: 780px)').matches) $('rail').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
   });
-  try { if (localStorage.getItem('deskcube-tab') === 'lesson') showTab('lesson'); } catch (e) {}
+  try { if (localStorage.getItem('deskcube-tab') === 'lesson' && cube.n !== PYRA) showTab('lesson'); } catch (e) {}
   renderLesson();
 
   // ---------- Controls panel ----------
@@ -2678,7 +2854,37 @@ img { max-width: 100%; }
   const pts = list => list.map(p => iso(p).map(n => n.toFixed(3)).join(',')).join(' ');
 
   // Drawn for a cube of size `size`, scaled so every size fills the same box.
+  // The pyramid's picture: its front face with the moving part lit, and an arrow where it can be seen.
+  function pyraIcon(m) {
+    const k = m[0].toUpperCase(), tip = m[0] !== k, prime = m[1] === "'";
+    const A = [0, -2.9], B = [-2.9, 2.2], C = [2.9, 2.2];
+    const at = (a, b) => { const c = 3 - a - b; return [(A[0] * a + B[0] * b + C[0] * c) / 3, (A[1] * a + B[1] * b + C[1] * c) / 3]; };
+    // a, b, c count thirds towards the top, left and right corners; tri lists one small triangle.
+    const tris = [];
+    for (let a = 0; a < 3; a++) for (let b = 0; b < 3 - a; b++) {
+      tris.push({ p: [at(a + 1, b), at(a, b + 1), at(a, b)], d: [a, b, 2 - a - b] });
+      if (a + b < 2) tris.push({ p: [at(a + 1, b), at(a, b + 1), at(a + 1, b + 1)], d: [a + 1 / 2, b + 1 / 2, 1 / 2 - a - b + 1 / 2] });
+    }
+    const axis = { U: 0, L: 1, R: 2 }[k], lit = t => axis !== undefined && t.d[axis] >= (tip ? 2 : 1);
+    const poly = (p, cls) => `<polygon class="${cls}" points="${p.map(q => q.map(n => n.toFixed(3)).join(',')).join(' ')}"/>`;
+    let out = poly([A, B, C], 'body');
+    for (const t of tris) {
+      const mid = [0, 1].map(i => (t.p[0][i] + t.p[1][i] + t.p[2][i]) / 3);
+      out += poly(t.p.map(q => q.map((n, i) => mid[i] + (n - mid[i]) * 0.8)), 'st' + (lit(t) ? ' on' : ''));
+    }
+    // Arrow across the moving part, clockwise as seen from that corner.
+    if (axis !== undefined) {
+      const c = [A, B, C][axis], o = [[A, B, C][(axis + 1) % 3], [A, B, C][(axis + 2) % 3]], t = tip ? 0.34 : 0.66;
+      let s = o[0].map((n, i) => c[i] + (n - c[i]) * t), e = o[1].map((n, i) => c[i] + (n - c[i]) * t);
+      if (prime) [s, e] = [e, s];
+      const len = Math.hypot(e[0] - s[0], e[1] - s[1]), dx = (e[0] - s[0]) / len, dy = (e[1] - s[1]) / len, bx = e[0] - dx * 0.62, by = e[1] - dy * 0.62;
+      const line = `M${s[0].toFixed(3)},${s[1].toFixed(3)} L${(e[0] - dx * 0.5).toFixed(3)},${(e[1] - dy * 0.5).toFixed(3)}`;
+      out += `<path class="halo" d="${line}"/><path class="arrow" d="${line}"/><polygon class="head" points="${e[0].toFixed(3)},${e[1].toFixed(3)} ${(bx - dy * 0.4).toFixed(3)},${(by + dx * 0.4).toFixed(3)} ${(bx + dy * 0.4).toFixed(3)},${(by - dx * 0.4).toFixed(3)}"/>`;
+    }
+    return `<svg class="kp-icon" viewBox="-3.2 -3.3 6.4 6.6" aria-hidden="true">${out}</svg>`;
+  }
   function moveIcon(m, size = 3) {
+    if (size === PYRA) return pyraIcon(m);
     const mv = decode(m, HOME, size), { axis, layer, angle } = mv;
     const faces = [[V(0, 1, 0), V(1, 0, 0), V(0, 0, 1)], [V(0, 0, 1), V(1, 0, 0), V(0, 1, 0)], [V(1, 0, 0), V(0, 0, 1), V(0, 1, 0)]];
     const H = (size - 1) / 2, k = 3 / size;
@@ -2726,6 +2932,12 @@ img { max-width: 100%; }
     ...'UDLRFB'.split('').map(F => ['kpInner', '2' + F, `Only the inner layer just inside ${F} (turns like ${F})`]),
     ...KEY_INFO.filter(r => r[0] === 'kpWhole'),
   ];
+  const KEY_INFO_PYRA = [
+    ['kpFaces', 'U', 'The top corner and the layer below it'], ['kpFaces', 'L', 'The left corner and the layer next to it'],
+    ['kpFaces', 'R', 'The right corner and the layer next to it'], ['kpFaces', 'B', 'The back corner and the layer next to it'],
+    ['kpWide', 'u', 'Just the top tip'], ['kpWide', 'l', 'Just the left tip'], ['kpWide', 'r', 'Just the right tip'], ['kpWide', 'b', 'Just the back tip'],
+  ];
+  const SHORT_PYRA = { U: 'Top corner', L: 'Left corner', R: 'Right corner', B: 'Back corner', u: 'Top tip', l: 'Left tip', r: 'Right tip', b: 'Back tip' };
   // The 5×5 has those and the middle slices.
   const KEY_INFO_5 = [
     ...KEY_INFO.filter(r => r[0] === 'kpFaces'),
@@ -2755,6 +2967,7 @@ img { max-width: 100%; }
     3: [['MoYu RS3M V5', 'Budget', 'The usual first speed cube: magnetic and reliable'], ['GAN 14 MagLev', 'Step up', 'A top-level cube used by competitive solvers']],
     4: [['MoYu RS4M', 'Budget', 'Stable and easy to turn for a first 4×4'], ['GAN 460 M', 'Step up', 'Smooth, magnetic and good for fast solves']],
     5: [['YJ MGC 5x5', 'Budget', 'An affordable magnetic 5×5 that turns well'], ['GAN 562 M', 'Step up', 'Light and stable for fast solves']],
+    [PYRA]: [['MoYu pyramid', 'Budget', 'A cheap, smooth first pyramid puzzle'], ['GAN magnetic pyramid', 'Step up', 'Magnetic and fast']],
   };
   function renderShop() {
     const tag = SUPPORT.amazonTag.trim();
@@ -2801,6 +3014,7 @@ img { max-width: 100%; }
     3: [['Faces', 'UDLRFB'], ['Middle', 'MES'], ['Whole cube', 'xyz']],
     4: [['Faces', 'UDLRFB'], ['Wide', 'udlrfb'], ['Inner', ['2U', '2D', '2L', '2R', '2F', '2B']], ['Whole cube', 'xyz']],
     5: [['Faces', 'UDLRFB'], ['Wide', 'udlrfb'], ['Inner', ['2U', '2D', '2L', '2R', '2F', '2B']], ['Middle', 'MES'], ['Whole cube', 'xyz']],
+    [PYRA]: [['Corners', 'ULRB'], ['Tips', 'ulrb']],
   };
   let turnSet = 0;
   function renderTurnSheet() {
@@ -2824,16 +3038,17 @@ img { max-width: 100%; }
   // Rebuilt when the cube size changes: the pictures show that size, and only its turns are listed.
   function renderControlRows() {
     for (const id of ['kpFaces', 'kpSlices', 'kpWide', 'kpInner', 'kpWhole']) $(id).innerHTML = '';
-    if (cube.n >= 4) {
+    if (cube.n === PYRA) $('kpWide').innerHTML = '<div class="kp-sub">Tips <span>· hold Space</span></div>';
+    else if (cube.n >= 4) {
       $('kpWide').innerHTML = '<div class="kp-sub">Wide <span>· outer two layers · hold Space</span></div>';
       $('kpInner').innerHTML = '<div class="kp-sub">Inner layers <span>· hold 2</span></div>';
     }
-    const rows = cube.n === 5 ? KEY_INFO_5 : cube.n === 4 ? KEY_INFO_4 : cube.n === 2 ? KEY_INFO.filter(r => r[0] !== 'kpSlices') : KEY_INFO;
+    const rows = cube.n === PYRA ? KEY_INFO_PYRA : cube.n === 5 ? KEY_INFO_5 : cube.n === 4 ? KEY_INFO_4 : cube.n === 2 ? KEY_INFO.filter(r => r[0] !== 'kpSlices') : KEY_INFO;
     for (const [group, k, name] of rows) {
     const row = document.createElement('div');
     row.className = 'kp-row';
     row.title = name;
-    row.innerHTML = `${moveIcon(k, cube.n)}<div class="kp-name"><b>${k}</b><span>${SHORT_NAME[k]}</span></div>
+    row.innerHTML = `${moveIcon(k, cube.n)}<div class="kp-name"><b>${k}</b><span>${(cube.n === PYRA ? SHORT_PYRA : SHORT_NAME)[k]}</span></div>
       <button class="kp-move" id="kp-${k}" aria-label="${k}, clockwise" title="${k}: ${name}, clockwise"><span class="kp-keys" data-move="${k}"></span></button>
       <button class="kp-move" id="kp-${k}p" aria-label="${k}', counter-clockwise" title="${k}': the other way"><span class="kp-keys" data-move="${k}'"></span></button>`;
     row.querySelector(`#kp-${k}`).addEventListener('click', () => userMove(k));
@@ -3103,7 +3318,7 @@ img { max-width: 100%; }
   }
   function setFaces(on, quiet) {
     look.faces = !!on;
-    faceLabels.visible = look.faces;
+    faceLabels.visible = look.faces && cube.n !== PYRA;
     faceKey = '';
     $('facesBtn').setAttribute('aria-checked', look.faces);
     try { localStorage.setItem('deskcube-stickers', JSON.stringify(look)); } catch (e) {}
@@ -3115,14 +3330,15 @@ img { max-width: 100%; }
   function useSize(n) {
     cube.n = n;
     document.documentElement.dataset.size = n;
-    $('brandSub').textContent = `${n}×${n} practice cube`;
+    $('brandSub').textContent = brandName(n);
     for (const b of $('sizePick').children) b.setAttribute('aria-checked', +b.dataset.size === n);
     try { localStorage.setItem('deskcube-size', String(n)); } catch (e) {}
     // The trainer is 3×3 only; the lesson switches to this size's steps.
-    if (n !== 3 && !$('panel-trainer').hidden) showTab('practice');
+    if ((n !== 3 && !$('panel-trainer').hidden) || (n === PYRA && !$('panel-lesson').hidden)) showTab('practice');
     lessonSizeChanged();
     buildStages();
     placeFaceLabels();
+    faceLabels.visible = look.faces && n !== PYRA;
     renderControlRows();
     renderTurnSheet();
     renderShop();
@@ -3138,7 +3354,7 @@ img { max-width: 100%; }
     if (dailyOn() || strictSolving() || paused || state.scrambling) return false;
     useSize(n);
     reset();
-    setStatus(`Solved ${n}×${n} cube. Press Scramble to start a timed solve.`);
+    setStatus(`Solved ${puzzleName(n)}. Press Scramble to start a timed solve.`);
     if (!quiet) accountSettingsChanged();
     return true;
   }
@@ -3148,13 +3364,14 @@ img { max-width: 100%; }
     if (dailyOn() || strictSolving()) { setStatus('Finish this solve before changing the cube size.'); return; }
     if (state.mode === 'running') {
       askConfirm({
-        title: `Switch to the ${n}×${n}?`, ok: 'Switch',
-        text: 'You\'re in the middle of a solve. Switching ends it, and the new cube starts solved.',
+        title: `Switch to the ${shortName(n)}?`, ok: 'Switch',
+        text: 'You\'re in the middle of a solve. Switching ends it, and the new puzzle starts solved.',
       }, () => setSize(n));
     } else setSize(n);
   });
   setFaces(look.faces, true);
   function paintMaps() {
+    if (cube.n === PYRA) return;
     if (cube.n % 2 === 0) {
       const d = new THREE.Vector3();
       for (const f of FACES) {
@@ -4175,6 +4392,7 @@ img { max-width: 100%; }
   }
   buildStages();
   function renderStages() {
+    if (cube.n === PYRA) return;
     let counts, stage;
     if (cube.n >= 4) { const S = sim(cube.n), b = (cube.n === 4 ? status4 : status5)(S, readSim(S).st); counts = b.counts; stage = b.stage; }
     else if (cube.n === 2) { const S = sim(2), r = best2(S, readSim(S).st).r; counts = [r.white, r.home, r.up]; stage = r.stage; }
@@ -4194,7 +4412,7 @@ img { max-width: 100%; }
     return d > 0 ? 'top layer' : d < 0 ? 'bottom layer' : 'middle layer';
   }
   function getHint() {
-    if (isSpeed() || state.scrambling || anim || queue.length) return;
+    if (isSpeed() || state.scrambling || anim || queue.length || cube.n === PYRA) return;
     if (cube.n !== 3) {
       const h = cube.n === 2 ? findHint2() : findHintBig();
       hint.result = h; hint.pos = 0; hint.stale = false;
@@ -4533,6 +4751,8 @@ img { max-width: 100%; }
       const b = document.createElement('button');
       if ('MES'.includes(k)) b.className = 'odd-only';
       if ('udlrfb'.includes(k) || k[0] === '2') b.className = 'big-only';
+      if ('ulrb'.includes(k)) b.className = 'big-only tip-turn';
+      if ('DFxyz'.includes(k)) b.className = 'no-pyra';
       b.textContent = m;
       b.id = 'pad-' + k + (m.length > 1 ? 'p' : '');
       b.title = k[0] === '2' ? `Turn only the inner layer next to ${k[1]}` : LETTERS[k][1] === null ? 'Rotate the whole cube' : LETTERS[k][1] === 'wide' ? `Turn the outer two layers (${m[0].toUpperCase()}w${m.slice(1)})` : 'Turn ' + m;
@@ -4574,7 +4794,7 @@ img { max-width: 100%; }
   });
   $('undoBtn').addEventListener('click', undo);
   $('flipBtn').addEventListener('click', () => userMove('x2'));
-  $('viewBtn').addEventListener('click', () => flyTo(V(1, 1, 1), V(0, 1, 0)));
+  $('viewBtn').addEventListener('click', flyHome);
   $('zoomIn').addEventListener('click', () => setZoom(view.zoom / 1.2));
   $('zoomOut').addEventListener('click', () => setZoom(view.zoom * 1.2));
   $('zoomLevel').addEventListener('click', () => setZoom(1));
@@ -4667,6 +4887,13 @@ img { max-width: 100%; }
     if (e.key === 'Backspace') { e.preventDefault(); undo(); return; }
     // Arrow keys turn the whole cube (like Flip): the front face moves the way the arrow points.
     const arrows = { ArrowLeft: 'y', ArrowRight: "y'", ArrowUp: 'x', ArrowDown: "x'" };
+    if (arrows[e.key] && cube.n === PYRA) {
+      // The pyramid has no whole-puzzle turns to type, so the arrows swing the view round it.
+      e.preventDefault();
+      camFly = null;
+      orbit({ ArrowLeft: -65, ArrowRight: 65 }[e.key] || 0, { ArrowUp: -65, ArrowDown: 65 }[e.key] || 0);
+      return;
+    }
     if (arrows[e.key]) { e.preventDefault(); if (!e.repeat) userMove(arrows[e.key]); return; }
     // V flips the cube upside down in both layouts (no face uses V).
     if (e.key === 'v' || e.key === 'V') { e.preventDefault(); if (!e.repeat) userMove('x2'); return; }
@@ -4694,6 +4921,8 @@ img { max-width: 100%; }
   var replay = { on: false, turns: [], i: 0, speed: 1, playing: false, clock: 0, last: 0, total: 0, src: null };
   var lastReplay = null;
   function encodeTurn(m, t) {
+    // Pyramid: which corner (A to D), + for the corner or t for its tip, and 1 or 3 for the way round.
+    if (m.pv !== undefined) return `${'ABCD'[m.pv]}${m.tip ? 't' : '+'}${m.angle > 0 ? 1 : 3}@${Math.round(t / 10)}`;
     const q = ((Math.round(m.angle / (Math.PI / 2)) % 4) + 4) % 4;
     // Layers: + and - are the outer ones, 0 the middle on odd cubes, a and b the inner ones on the 4×4 and 5×5.
     const H = half();
@@ -4703,6 +4932,11 @@ img { max-width: 100%; }
   function decodeReplay(text) {
     const out = [];
     for (const tok of (text || '').split(' ')) {
+      const p = /^([ABCD])([t+])([13])@(\d+)$/.exec(tok);
+      if (p) {
+        out.push({ axis: 'p', layer: 1, pv: 'ABCD'.indexOf(p[1]), tip: p[2] === 't', angle: (p[3] === '1' ? 1 : -1) * 2 * Math.PI / 3, t: +p[4] * 10 });
+        continue;
+      }
       const m = /^([xyz])([+\-0*ab])(w?)([123])@(\d+)$/.exec(tok);
       if (!m) continue;
       const q = +m[4], H = half();
@@ -4740,7 +4974,7 @@ img { max-width: 100%; }
       replay.clock += (now - replay.last) * replay.speed;
       while (replay.i < replay.turns.length && replay.turns[replay.i].t <= replay.clock) {
         const t = replay.turns[replay.i++], next = replay.turns[replay.i];
-        enqueue({ axis: t.axis, layer: t.layer, angle: t.angle, wide: t.wide, replay: true, gap: next ? next.t - t.t : 250 });
+        enqueue({ axis: t.axis, layer: t.layer, angle: t.angle, wide: t.wide, pv: t.pv, tip: t.tip, replay: true, gap: next ? next.t - t.t : 250 });
       }
       if (replay.i >= replay.turns.length && replay.clock >= replay.total && !queue.length && !anim) {
         replay.playing = false;
@@ -4791,7 +5025,7 @@ img { max-width: 100%; }
   }
   async function shareReplay(src, btn) {
     const n = src.size || 3, url = replayLink(src);
-    const text = `Watch this ${n}×${n} solve in ${fmt(src.time || 0)} on Desk Cube`;
+    const text = `Watch this ${shortName(n)} solve in ${fmt(src.time || 0)} on Desk Cube`;
     // Phones get the system share sheet; elsewhere the link is copied.
     if (navigator.share && matchMedia('(pointer: coarse)').matches) {
       try { await navigator.share({ title: 'Desk Cube replay', text, url }); return; }
@@ -4855,10 +5089,10 @@ img { max-width: 100%; }
     history.replaceState(null, '', location.pathname + location.search);
     let d = null;
     try { d = JSON.parse(unb64u(m[1])); } catch (e) {}
-    const ok = d && [2, 3, 4, 5].includes(d.n) && typeof d.s === 'string' && typeof d.r === 'string' && d.t >= 0;
+    const ok = d && [PYRA, 2, 3, 4, 5].includes(d.n) && typeof d.s === 'string' && typeof d.r === 'string' && d.t >= 0;
     if (!ok) { setStatus('That replay link is damaged, so it can\'t be played. Ask for the link again.'); return; }
     const by = typeof d.by === 'string' ? d.by.slice(0, 40) : '';
-    const title = `${by ? by + '\'s' : 'A shared'} ${d.n}×${d.n} solve: ${fmt(d.t)}`;
+    const title = `${by ? by + '\'s' : 'A shared'} ${shortName(d.n)} solve: ${fmt(d.t)}`;
     if (!startReplay({ scramble: d.s, replay: d.r, time: d.t, size: d.n, by: by || null, title })) {
       setStatus(paused ? 'Finish or give up your paused solve first, then open the replay link again.' : 'That replay couldn\'t be played.');
       return;
@@ -5134,7 +5368,7 @@ img { max-width: 100%; }
     const r = n => Math.round(n * 1e4) / 1e4;
     return {
       elapsed: Math.round(elapsed), prevMode, moves: state.moves, scramble: state.scrambleText || '', rec: state.rec || [],
-      history: state.history.slice(-500).map(h => ({ label: h.label, axis: h.axis, layer: h.layer, angle: h.angle, wide: !!h.wide })),
+      history: state.history.slice(-500).map(h => ({ label: h.label, axis: h.axis, layer: h.layer, angle: h.angle, wide: !!h.wide, pv: h.pv, tip: h.tip })),
       n: cube.n,
       cube: cubies.map(c => [c.position.x, c.position.y, c.position.z, c.quaternion.x, c.quaternion.y, c.quaternion.z, c.quaternion.w].map(r)),
       at: Date.now(),
@@ -5181,7 +5415,7 @@ img { max-width: 100%; }
   }
   function restorePaused(p) {
     const n = p && (p.n || 3);
-    if (!p || !Array.isArray(p.cube) || p.cube.length !== n ** 3 - Math.max(0, n - 2) ** 3) return false;
+    if (!p || !Array.isArray(p.cube) || p.cube.length !== (n === PYRA ? 14 : n ** 3 - Math.max(0, n - 2) ** 3)) return false;
     if (anim) finishAnim();
     queue = [];
     if (n !== cube.n) useSize(n);
@@ -5189,6 +5423,11 @@ img { max-width: 100%; }
     const m = new THREE.Matrix4();
     cubies.forEach((c, i) => {
       const v = p.cube[i];
+      if (n === PYRA) {
+        c.position.copy(pyraSnap(new THREE.Vector3(v[0], v[1], v[2])));
+        c.quaternion.set(v[3], v[4], v[5], v[6]).normalize();
+        return;
+      }
       c.position.set(snapC(v[0]), snapC(v[1]), snapC(v[2]));
       c.quaternion.set(v[3], v[4], v[5], v[6]).normalize();
       m.makeRotationFromQuaternion(c.quaternion);
@@ -5335,7 +5574,7 @@ img { max-width: 100%; }
     const list = sizedRemote(), times = list.map(s => s.dnf ? Infinity : s.time_ms), n = list.length;
     const others = acct.remote.length - n;
     $('acctSizeNote').hidden = !others;
-    $('acctSizeNote').textContent = `These are your ${cube.n}×${cube.n} solves. Switch the cube size to see the other ${others}.`;
+    $('acctSizeNote').textContent = `These are your ${shortName(cube.n)} solves. Switch the puzzle to see the other ${others}.`;
     const ok = finished().map(s => s.time_ms);
     const best = remoteBest(), f = v => v === null ? '–' : v === Infinity ? 'DNF' : fmt(v);
     const mean = ok.length ? ok.reduce((a, b) => a + b, 0) / ok.length : null;
@@ -5580,7 +5819,7 @@ img { max-width: 100%; }
     if (s.sound && typeof s.sound.on === 'boolean') setSound(s.sound.on, s.sound.vol, true);
     if (s.stickers && SCHEMES[s.stickers.scheme]) setLook(s.stickers.scheme, s.stickers.letters, true);
     if (s.stickers && typeof s.stickers.faces === 'boolean') setFaces(s.stickers.faces, true);
-    if ([2, 3, 4, 5].includes(s.size)) setSize(s.size, true);
+    if ([PYRA, 2, 3, 4, 5].includes(s.size)) setSize(s.size, true);
     if (typeof s.competition === 'boolean' && s.competition !== comp.on && !compSolving()) setComp(s.competition);
     // A solve paused on another computer opens here, paused, unless one is already going in this browser.
     const busy = paused || state.mode === 'running' || state.mode === 'ready';
@@ -5707,7 +5946,7 @@ img { max-width: 100%; }
       ['Solves', n(d.solves)], ['Solves today', n(d.solves_today)], ['Solves this week', n(d.solves_7d)],
       ['Daily today', n(d.daily_today)], ['Competition rounds', n(d.rounds)], ['On leaderboard', n(d.on_leaderboard)],
     ];
-    $('adminSizes').textContent = 'All solves by cube size: ' + [3, 2, 4, 5].map(k => `${k}×${k} ${n(sizes[k])}`).join(' · ');
+    $('adminSizes').textContent = 'All solves by puzzle: ' + [3, 2, 4, 5, PYRA].map(k => `${shortName(k)} ${n(sizes[k])}`).join(' · ');
     const box = $('adminTiles');
     box.innerHTML = '';
     for (const [label, value] of tiles) {
@@ -6047,8 +6286,8 @@ img { max-width: 100%; }
   }
 
   for (const b of $('sizePick').children) b.setAttribute('aria-checked', +b.dataset.size === cube.n);
-  $('brandSub').textContent = `${cube.n}×${cube.n} practice cube`;
-  if (cube.n !== 3) setStatus(`Solved ${cube.n}×${cube.n} cube. Press Scramble to start a timed solve.`);
+  $('brandSub').textContent = brandName(cube.n);
+  if (cube.n !== 3) setStatus(`Solved ${puzzleName(cube.n)}. Press Scramble to start a timed solve.`);
   buildCube();
   resize();
   placeCamera();
