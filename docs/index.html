@@ -420,7 +420,7 @@ img { max-width: 100%; }
   /* Inner and wide turns are for the 4×4 and 5×5; middle slices for odd cubes. */
   :root:not([data-size="1"]):not([data-size="4"]):not([data-size="5"]) .big-only { display: none !important; }
   :root[data-size="1"] .odd-only, :root[data-size="2"] .odd-only, :root[data-size="4"] .odd-only { display: none !important; }
-  /* The pyramid (size 1) has its own turns: tips on u l r b, and no lesson or hints yet. */
+  /* The pyramid (size 1) has its own turns: tips on u l r b. */
   :root[data-size="1"] .no-pyra, :root[data-size="1"] .big-only:not(.tip-turn) { display: none !important; }
   .size-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
   .size-row .size-label { color: var(--muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -715,7 +715,7 @@ img { max-width: 100%; }
         <button role="radio" id="modeSpeed" aria-checked="false" title="Hide all learning help">Solving</button>
       </div>
       <button class="learn-btn" id="keysBtn" aria-controls="keysPanel" title="Show or hide the controls (?)">Controls</button>
-      <button class="learn-btn learn-only no-pyra" id="learnBtn">Learn to solve</button>
+      <button class="learn-btn learn-only" id="learnBtn">Learn to solve</button>
       <button class="theme-switch" id="themeBtn" role="switch" aria-checked="false" title="Switch between light and dark">
         <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
         <span>Dark</span>
@@ -801,7 +801,7 @@ img { max-width: 100%; }
         <li title="Turn the whole cube left / right (y, y′)"><span class="kp-keys"><kbd>←</kbd><kbd>→</kbd></span><span>Turn</span></li>
         <li title="Tip the whole cube up / down (x, x′)"><span class="kp-keys"><kbd>↑</kbd><kbd>↓</kbd></span><span>Tip</span></li>
         <li title="Zoom in / out (or scroll); 0 resets"><span class="kp-keys"><kbd>+</kbd><kbd>−</kbd></span><span>Zoom</span></li>
-        <li class="learn-only no-pyra" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
+        <li class="learn-only" title="Get a hint for the next step"><span class="kp-keys"><kbd>H</kbd></span><span>Hint</span></li>      </ul>
     </div>
   </nav>
   <dialog class="confirm" id="resetDialog" aria-labelledby="resetTitle">
@@ -1058,7 +1058,7 @@ img { max-width: 100%; }
         <button role="radio" data-size="1" aria-checked="false" title="Pyramid: a four-sided puzzle" aria-label="Pyramid">▲</button>
       </div>
     </div>
-    <div class="tabs learn-only no-pyra" role="tablist">
+    <div class="tabs learn-only" role="tablist">
       <button role="tab" id="tab-practice" aria-selected="true" aria-controls="panel-practice">Practice</button>
       <button role="tab" id="tab-lesson" aria-selected="false" aria-controls="panel-lesson">Lesson</button>
       <button role="tab" id="tab-trainer" class="three-only" aria-selected="false" aria-controls="panel-trainer">Trainer</button>
@@ -1180,7 +1180,7 @@ img { max-width: 100%; }
 
     <p class="support" id="supportBox" hidden><span>Desk Cube is free with no ads.</span> <a class="tip-btn" id="kofiLink" target="_blank" rel="noopener">Leave a tip ☕</a></p>
 
-    <section class="coach learn-only no-pyra">
+    <section class="coach learn-only">
       <div class="coach-head">
         <h2>Solving steps</h2>
         <button id="hintBtn" class="primary" title="Show the next moves (H)">Hint <kbd>H</kbd></button>
@@ -1239,7 +1239,7 @@ img { max-width: 100%; }
   const PYRA = 1;
   const shortName = n => n === PYRA ? 'pyramid' : `${n}×${n}`;
   const puzzleName = n => n === PYRA ? 'pyramid' : `${n}×${n} cube`;
-  const brandName = n => n === PYRA ? 'Pyramid practice puzzle' : `${n}×${n} practice cube`;
+  const brandName = n => n === PYRA ? 'Pyramid puzzle' : `${n}×${n} practice cube`;
   const cube = { n: 3 };
   try { const n = +localStorage.getItem('deskcube-size'); if (n === PYRA || n === 2 || n === 4 || n === 5) cube.n = n; } catch (e) {}
   document.documentElement.dataset.size = cube.n;
@@ -1468,21 +1468,29 @@ img { max-width: 100%; }
   const PYRA_TIP_AT = 1.02, PYRA_BIG_AT = 0.2;   // how far along a corner's axis its tip and second layer begin
   const PYRA_COLOR = ['D', 'R', 'F', 'B'];       // the face opposite each corner
   const pyraUp = () => PYRA_DIRS[0];
-  // Home: mostly the front face, turned a little so a second face shows, from slightly above.
-  const pyraHome = () => PYRA_DIRS[3].clone().negate().addScaledVector(PYRA_DIRS[2], -0.45).addScaledVector(PYRA_DIRS[0], 0.25).normalize();
+  // A grip names the corners: U on top, B at the back, and L and R as they then fall. Its view is mostly
+  // the front face, turned a little so a second face shows, from slightly above.
+  function pyraGrip(U, B) {
+    const rest = [0, 1, 2, 3].filter(i => i !== U && i !== B);
+    const right = new THREE.Vector3().crossVectors(PYRA_DIRS[U], PYRA_DIRS[B].clone().negate());
+    const R = PYRA_DIRS[rest[0]].dot(right) > PYRA_DIRS[rest[1]].dot(right) ? rest[0] : rest[1];
+    return { pyra: true, U, B, R, L: rest.find(i => i !== R) };
+  }
+  const pyraEye = g => PYRA_DIRS[g.B].clone().negate().addScaledVector(PYRA_DIRS[g.R], -0.45).addScaledVector(PYRA_DIRS[g.U], 0.25).normalize();
+  const pyraHome = () => pyraEye(pyraGrip(0, 3));
   let pyraSlots = [];
   function pyraPieces() {
     const third = (i, j) => PYRA_V[j].clone().sub(PYRA_V[i]).divideScalar(3), out = [];
     for (let i = 0; i < 4; i++) {
       const others = [0, 1, 2, 3].filter(j => j !== i), at = PYRA_V[i];
-      out.push(['tip', [at, ...others.map(j => at.clone().add(third(i, j)))]]);
+      out.push(['tip', [at, ...others.map(j => at.clone().add(third(i, j)))], [i]]);
       const ring = others.map(j => at.clone().add(third(i, j)));
       const far = [[0, 1], [1, 2], [0, 2]].map(([a, b]) => at.clone().add(third(i, others[a])).add(third(i, others[b])));
-      out.push(['center', [...ring, ...far]]);
+      out.push(['center', [...ring, ...far], [i]]);
       for (const j of others) {
         if (j < i) continue;
         const p = at.clone().add(third(i, j)), rest = others.filter(k => k !== j);
-        out.push(['edge', [p, p.clone().add(third(i, j)), ...rest.map(k => p.clone().add(third(i, k)))]]);
+        out.push(['edge', [p, p.clone().add(third(i, j)), ...rest.map(k => p.clone().add(third(i, k)))], [i, j]]);
       }
     }
     return out;
@@ -2562,8 +2570,72 @@ img { max-width: 100%; }
       ],
     },
   ];
-  const LESSONS = { 2: LESSON2, 3: LESSON, 4: LESSON4, 5: LESSON5 };
-  function steps() { return LESSONS[cube.n] || LESSON; }
+  const LESSON_P = [
+    {
+      title: 'How the pyramid works',
+      body: [
+        'The pyramid has four faces and four corners. It has three kinds of piece: four <b>tips</b> at the very corners, four <b>centers</b> just below them, and six <b>edges</b> with two stickers.',
+        'Each corner turns a third of the way round. <code class="mv">U</code> turns the top corner and the layer below it, clockwise as you look at that corner from outside. <code class="mv">L</code>, <code class="mv">R</code> and <code class="mv">B</code> do the same for the left, right and back corners, and <code class="mv">U\'</code> goes the other way.',
+        'Lowercase letters turn only the tip: <code class="mv">u</code>, <code class="mv">l</code>, <code class="mv">r</code> and <code class="mv">b</code>. On the keyboard, hold Space and press the letter.',
+        'Press Play to watch <code class="mv">R U R\' U\'</code>. The letters follow your view, so <code class="mv">U</code> is always the corner at the top of your screen.',
+      ],
+      demo: "R U R' U'",
+    },
+    {
+      title: 'Turn the tips',
+      gen: () => genPyra(0),
+      done: 'All four tips match the centers under them.',
+      body: [
+        '<b>Goal:</b> each tip\'s colors match the center piece just below it.',
+        'This is the easiest step. A tip only turns by itself, so turn each one until its colors line up with the center under it. It takes one turn at most.',
+        'Tips never get in the way of anything else, so you can do this first and forget about them. A corner turn carries the tip along with its center.',
+      ],
+    },
+    {
+      title: 'Line up the centers',
+      gen: () => genPyra(1),
+      done: 'The centers are lined up, so every face has its color.',
+      body: [
+        '<b>Goal:</b> the three center stickers on each face all the same color. Every center is already in the right place, so it only needs turning.',
+        'Each center has three of the four colors. The color it doesn\'t have belongs on the face opposite it, so the centers tell you which color goes on which face.',
+        'Pick a face and work out its color: it\'s the color missing from the corner opposite that face. Do the same for the others, then turn each corner until its three stickers sit on the faces of those colors. Each one takes one turn at most.',
+        'The edges get mixed up while you do this. That\'s expected: they\'re next.',
+      ],
+    },
+    {
+      title: 'Solve the bottom edges',
+      gen: () => genPyra(2),
+      done: 'The bottom layer is finished: the three bottom edges are in place.',
+      body: [
+        '<b>Goal:</b> the three edges around the yellow face in place, so the whole bottom layer is solved.',
+        'Hold yellow on the bottom, with the edge you want to fill at the bottom front. Look for it in the top layer, then use the moves for where it is:',
+        '<b>At the top left, front color facing you:</b> <code class="mv">R U\' R\' U</code>.',
+        '<b>At the top right, front color facing you:</b> <code class="mv">L\' U L U\'</code>.',
+        '<b>At the top back:</b> you\'ll need to look round the back to see it. With yellow on its right-hand sticker (as seen from the front), use <code class="mv">R U R\' U\'</code>. With yellow on its left-hand sticker, use <code class="mv">L\' U\' L U</code>.',
+        'Each of these puts everything else back, including the centers and tips. If the edge you want is in the bottom layer in the wrong spot or flipped, do any of them with it at the bottom front to lift it up, then place it.',
+      ],
+    },
+    {
+      title: 'Solve the last edges',
+      gen: () => genPyra(3),
+      done: 'Solved! That\'s the whole pyramid method.',
+      body: [
+        '<b>Goal:</b> the last three edges, around the top corner. Keep yellow on the bottom.',
+        '<b>If they\'re in the wrong places:</b> <code class="mv">R U R\' U R U R\'</code> moves all three around one way, and <code class="mv">R\' U\' R U\' R\' U\' R</code> moves them the other way. The bottom layer comes back at the end.',
+        '<b>If two are in the right place but flipped:</b> hold the top edge that\'s fine at the back, so the two flipped ones are front left and front right, and do <code class="mv">R\' L R L\' U L\' U\' L</code>.',
+        'One of these, or two in a row, always finishes it.',
+      ],
+    },
+    {
+      title: 'Solve one on your own',
+      body: [
+        'That\'s the whole method: turn the tips, line up the centers, solve the bottom edges, then the last edges.',
+        'Scramble it and work through the steps, pressing Hint on the Practice tab whenever you get stuck. Most people can learn this one in an afternoon, and it\'s a lot quicker to solve than a 3×3.',
+      ],
+    },
+  ];
+  const LESSONS = { [PYRA]: LESSON_P, 2: LESSON2, 3: LESSON, 4: LESSON4, 5: LESSON5 };
+  function steps() { return LESSONS[cube.n]; }
   const EXAMPLE_NOTE = 'The example starts from a new scramble with the earlier steps already done. Press <b>Play</b> to watch this step solved part by part, or <b>Next move</b> to go one turn at a time. <b>New example</b> deals a different cube.';
 
   // Each size remembers its own step.
@@ -2781,7 +2853,7 @@ img { max-width: 100%; }
     if (part.frame && (lesson.pos === 0 || flat[lesson.pos - 1].part !== first.part)) flyToFrame(part.frame);
     for (let i = lesson.pos; i < end; i++) {
       const m = flat[i];
-      enqueue({ label: m.label, axis: m.axis, layer: m.layer, angle: m.angle, wide: m.wide, lessonIndex: i });
+      enqueue({ label: m.label, axis: m.axis, layer: m.layer, angle: m.angle, wide: m.wide, pv: m.pv, tip: m.tip, lessonIndex: i });
     }
     if (all) setLessonStatus('Playing the moves…');
   }
@@ -2840,7 +2912,7 @@ img { max-width: 100%; }
     showTab('lesson');
     if (window.matchMedia('(max-width: 780px)').matches) $('rail').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
   });
-  try { if (localStorage.getItem('deskcube-tab') === 'lesson' && cube.n !== PYRA) showTab('lesson'); } catch (e) {}
+  try { if (localStorage.getItem('deskcube-tab') === 'lesson') showTab('lesson'); } catch (e) {}
   renderLesson();
 
   // ---------- Controls panel ----------
@@ -3334,7 +3406,7 @@ img { max-width: 100%; }
     for (const b of $('sizePick').children) b.setAttribute('aria-checked', +b.dataset.size === n);
     try { localStorage.setItem('deskcube-size', String(n)); } catch (e) {}
     // The trainer is 3×3 only; the lesson switches to this size's steps.
-    if ((n !== 3 && !$('panel-trainer').hidden) || (n === PYRA && !$('panel-lesson').hidden)) showTab('practice');
+    if (n !== 3 && !$('panel-trainer').hidden) showTab('practice');
     lessonSizeChanged();
     buildStages();
     placeFaceLabels();
@@ -3948,7 +4020,8 @@ img { max-width: 100%; }
     { name: 'White cross', lesson: 6 }, { name: 'White corners', lesson: 6 }, { name: 'Middle layer', lesson: 6 }, { name: 'Yellow cross', lesson: 6 },
     { name: 'Yellow edges', lesson: 6 }, { name: 'Yellow corners in place', lesson: 6 }, { name: 'Twist yellow corners', lesson: 6 },
   ];
-  const stageList = () => cube.n === 2 ? STAGES2 : cube.n === 4 ? STAGES4 : cube.n === 5 ? STAGES5 : STAGES;
+  const STAGES_P = [{ name: 'Tips', lesson: 1 }, { name: 'Centers', lesson: 2 }, { name: 'Bottom edges', lesson: 3, of: 3 }, { name: 'Last edges', lesson: 4, of: 3 }];
+  const stageList = () => cube.n === PYRA ? STAGES_P : cube.n === 2 ? STAGES2 : cube.n === 4 ? STAGES4 : cube.n === 5 ? STAGES5 : STAGES;
   const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   const orients = {};
   function orientations(n) {
@@ -4361,6 +4434,158 @@ img { max-width: 100%; }
     return { ...h, meshes: h.glow.map(i => meshes[i]).filter(Boolean) };
   }
 
+  // ---------- Pyramid hints: the steps of its lesson ----------
+  // A sticker model of the pyramid. Centers never leave their corners, and each has three of the four colors,
+  // so the color it lacks must end up on the opposite face: there's only one way for every face to finish.
+  let pyraModel = null;
+  function pyraM() {
+    if (pyraModel) return pyraModel;
+    const pieces = pyraPieces().map(([type, points, v]) => ({ type, v, c: points.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(points.length), points }));
+    const normals = PYRA_DIRS.map(d => d.clone().negate()), slots = [], index = new Map();
+    pieces.forEach((p, pi) => normals.forEach((n, face) => {
+      if (p.points.filter(q => Math.abs(q.dot(n) - PYRA_R / 3) < 1e-6).length < 3) return;
+      index.set(pi + ':' + face, slots.length);
+      slots.push({ pi, face });
+    }));
+    const nearest = (list, v) => list.reduce((b, x, i) => x.distanceToSquared(v) < list[b].distanceToSquared(v) ? i : b, 0);
+    const centers = pieces.map(p => p.c), perms = new Map();
+    // Every sticker's next spot for a turn.
+    const perm = (pv, tip, sign) => {
+      const key = `${pv}${tip ? 't' : ''}${sign}`;
+      if (!perms.has(key)) perms.set(key, slots.map((sl, i) => {
+        const c = pieces[sl.pi].c, a = sign * 2 * Math.PI / 3;
+        if (c.dot(PYRA_DIRS[pv]) <= (tip ? PYRA_TIP_AT : PYRA_BIG_AT)) return i;
+        return index.get(nearest(centers, c.clone().applyAxisAngle(PYRA_DIRS[pv], a)) + ':' + nearest(normals, normals[sl.face].clone().applyAxisAngle(PYRA_DIRS[pv], a)));
+      }));
+      return perms.get(key);
+    };
+    const run = (st, p) => { const out = st.slice(); st.forEach((c, i) => { out[p[i]] = c; }); return out; };
+    const apply = (st, moves) => moves.reduce((x, m) => run(x, perm(m.pv, m.tip, m.angle > 0 ? 1 : -1)), st);
+    const solved = slots.map(sl => COLS.indexOf(PYRA_COLOR[sl.face]));
+    const of = (type) => pieces.map((p, i) => p.type === type ? i : -1).filter(i => i >= 0);
+    const stickers = pieces.map((_, pi) => slots.map((sl, i) => sl.pi === pi ? i : -1).filter(i => i >= 0));
+    return (pyraModel = { pieces, slots, index, normals, nearest, centers, apply, solved, tips: of('tip'), mids: of('center'), edges: of('edge'), stickers });
+  }
+  function readPyra() {
+    const M = pyraM(), st = new Array(M.slots.length).fill(0), meshes = [], v = new THREE.Vector3(), d = new THREE.Vector3();
+    scene.updateMatrixWorld();
+    for (const s of stickers) {
+      s.parent.getWorldPosition(v); s.getWorldDirection(d);
+      const i = M.index.get(M.nearest(M.centers, v) + ':' + M.nearest(M.normals, d));
+      st[i] = COLS.indexOf(s.userData.color);
+      meshes[i] = s;
+    }
+    return { st, meshes };
+  }
+  function pyraStatus(st) {
+    const M = pyraM(), same = (T, pi) => M.stickers[pi].every(i => st[i] === T[i]);
+    // A tip is right when each of its colors matches the center below it on that face.
+    const tipOK = pi => M.stickers[pi].every(i => { const c = M.mids.find(m => M.pieces[m].v[0] === M.pieces[pi].v[0]); return st[i] === st[M.index.get(c + ':' + M.slots[i].face)]; });
+    const tips = M.tips.filter(tipOK).length;
+    const T = M.solved, best = M.mids.filter(pi => same(T, pi)).length;
+    // The corner opposite the yellow face is the top; its three edges are the last ones.
+    const top = M.slots[T.indexOf(colorOf(Y_UP))].face;
+    const lowEdges = M.edges.filter(pi => !M.pieces[pi].v.includes(top)), topEdges = M.edges.filter(pi => M.pieces[pi].v.includes(top));
+    const low = lowEdges.filter(pi => same(T, pi)).length, high = topEdges.filter(pi => same(T, pi)).length;
+    const stage = tips < 4 ? 0 : best < 4 ? 1 : low < 3 ? 2 : high < 3 ? 3 : 99;
+    return { T, top, tips, lowEdges, topEdges, tipOK, same, stage, counts: [tips, best, low, high] };
+  }
+  const pyraMoves = (g, labels) => labels.split(' ').filter(Boolean).map(l => {
+    const k = l[0].toUpperCase();
+    return { label: l, axis: 'p', layer: 1, pv: g[k], tip: l[0] !== k, angle: (l[1] === "'" ? 1 : -1) * 2 * Math.PI / 3 };
+  });
+  const PYRA_LOW_ALGS = ["R U R' U'", "L' U' L U", "R U' R' U", "L' U L U'", "R' U R U'", "R' U' R U", "L U L' U'", "L U' L' U"];
+  const PYRA_TOP_ALGS = ["R U R' U R U R'", "R' U' R U' R' U' R", "R' L R L' U L' U' L"];
+  // The hint for this cube: stage, the parts to play (each with a caption) and the stickers to glow.
+  function pyraHintCore(st) {
+    const M = pyraM(), b = pyraStatus(st), stage = b.stage, home = pyraGrip(0, 3);
+    if (stage === 99) return { stage, counts: b.counts, phases: [], glow: [], text: 'The pyramid is solved. Scramble it to go again.' };
+    const head = `Step ${stage + 1}, ${STAGES_P[stage].name.toLowerCase()}.`;
+    const letter = pv => 'ULRB'.split('').find(k => home[k] === pv);
+    let phases = null, glow = [], text = '';
+    if (stage === 0) {
+      const wrong = M.tips.filter(pi => !b.tipOK(pi));
+      const labels = wrong.map(pi => {
+        const k = letter(M.pieces[pi].v[0]).toLowerCase();
+        return [k, k + "'"].find(l => pyraStatus(M.apply(st, pyraMoves(home, l))).tipOK(pi));
+      });
+      phases = [{ frame: home, moves: pyraMoves(home, labels.join(' ')), caption: 'Turn each tip to match the center below it', cap: '' }];
+      glow = wrong.flatMap(pi => M.stickers[pi]);
+      text = 'Turn each glowing tip so its colors match the center below it.';
+    } else if (stage === 1) {
+      const wrong = M.mids.filter(pi => !b.same(b.T, pi));
+      const labels = wrong.map(pi => {
+        const k = letter(M.pieces[pi].v[0]);
+        return [k, k + "'"].find(l => { const after = M.apply(st, pyraMoves(home, l)); return M.stickers[pi].every(i => after[i] === b.T[i]); });
+      });
+      phases = [{ frame: home, moves: pyraMoves(home, labels.join(' ')), caption: 'Turn each corner until the center colors on every face agree', cap: '' }];
+      glow = wrong.flatMap(pi => M.stickers[pi]);
+      text = 'Turn the corners with the glowing centers until the three center stickers on each face agree. A center\'s missing color belongs on the face opposite it. The edges will move: that\'s fine.';
+    } else {
+      const grips = [0, 1, 2, 3].filter(i => i !== b.top).map(back => pyraGrip(b.top, back));
+      const opt = list => grips.flatMap(g => list.map(a => ({ frame: g, moves: pyraMoves(g, a) })));
+      const front = g => cname(b.T[M.slots.findIndex(sl => sl.face === g.B)]);
+      if (stage === 2) {
+        const keep = b.lowEdges.filter(pi => b.same(b.T, pi)), O = opt(PYRA_LOW_ALGS);
+        const good = x => { const ok = pi => M.stickers[pi].every(i => x[i] === b.T[i]); return keep.every(ok) && b.lowEdges.filter(ok).length > keep.length; };
+        search: for (const o of O) {
+          const a = M.apply(st, o.moves);
+          if (good(a)) { phases = [o]; break search; }
+        }
+        if (!phases) search2: for (const o of O) {
+          const a = M.apply(st, o.moves);
+          for (const q of O) if (good(M.apply(a, q.moves))) { phases = [o, q]; break search2; }
+        }
+        if (phases) {
+          // Which edge this places, and where that edge is now.
+          const after = M.apply(st, phases.flatMap(p => p.moves));
+          const placed = b.lowEdges.find(pi => !keep.includes(pi) && M.stickers[pi].every(i => after[i] === b.T[i]));
+          const want = M.stickers[placed].map(i => b.T[i]).sort().join();
+          const at = M.edges.find(pi => M.stickers[pi].map(i => st[i]).sort().join() === want);
+          glow = M.stickers[at];
+          const names = M.stickers[placed].map(i => cname(b.T[i])).join('–');
+          text = `Next, the ${names} edge: it's glowing. Hold yellow on the bottom, ${front(phases[phases.length - 1].frame)} in front, then do the moves below.`;
+          phases = phases.map((p, i) => ({ ...p, caption: i < phases.length - 1 ? 'Get the edge ready' : `Put the ${names} edge in`, cap: `Part ${i + 1}: ${front(p.frame)} in front` }));
+        }
+      } else {
+        const O = opt(PYRA_TOP_ALGS), done = x => x.every((c, i) => c === b.T[i]);
+        const dfs = (x, left) => { for (const o of O) { const a = M.apply(x, o.moves); if (left === 1) { if (done(a)) return [o]; } else { const r = dfs(a, left - 1); if (r) return [o, ...r]; } } return null; };
+        for (let d = 1; d <= 3 && !phases; d++) phases = dfs(st, d);
+        if (phases) {
+          phases = phases.map((p, i) => ({ ...p, caption: p.moves.length === 8 ? 'Flip the front left and front right top edges' : 'Move the top edges around', cap: `Part ${i + 1}: ${front(p.frame)} in front` }));
+          text = `The glowing edges still need work. Hold yellow on the bottom, ${front(phases[0].frame)} in front, then do the moves below.`;
+        }
+        glow = b.topEdges.filter(pi => !b.same(b.T, pi)).flatMap(pi => M.stickers[pi]);
+      }
+    }
+    if (!phases) return { stage, counts: b.counts, phases: null, glow: [], text: `${head} I couldn't find a short hint from here. The lesson for this step explains what to look for.` };
+    return { stage, counts: b.counts, phases, glow, text: `${head} ${text}` };
+  }
+  function findHintPyra() {
+    const { st, meshes } = readPyra(), h = pyraHintCore(st);
+    return { ...h, meshes: h.glow.map(i => meshes[i]).filter(Boolean) };
+  }
+  // Lesson examples: a fresh scramble, earlier steps done quietly, then this step played part by part.
+  function genPyra(stage) {
+    const M = pyraM(), home = pyraGrip(0, 3), setup = pyraMoves(home, scrambleSeq(Math.random, PYRA).join(' '));
+    let st = M.apply(M.solved, setup);
+    for (let guard = 0; pyraStatus(st).stage < stage; guard++) {
+      const h = pyraHintCore(st);
+      if (!h.phases || guard > 30) return null;
+      const mv = h.phases.flatMap(p => p.moves);
+      setup.push(...mv);
+      st = M.apply(st, mv);
+    }
+    if (pyraStatus(st).stage !== stage) return null;
+    const parts = [];
+    for (let guard = 0; pyraStatus(st).stage === stage; guard++) {
+      const h = pyraHintCore(st);
+      if (!h.phases || guard > 30) return null;
+      for (const p of h.phases) { parts.push({ frame: p.frame, moves: p.moves, caption: p.caption, grip: p.cap ? 'Yellow on the bottom' : '' }); st = M.apply(st, p.moves); }
+    }
+    return { setup, parts };
+  }
+
   // Pulsing highlight on the stickers of the piece a hint is about.
   var hiMats = {};
   for (const k in STICKER) { hiMats[k] = stickerMats[k].clone(); hiMats[k].emissive = new THREE.Color(0xffffff); }
@@ -4392,9 +4617,9 @@ img { max-width: 100%; }
   }
   buildStages();
   function renderStages() {
-    if (cube.n === PYRA) return;
     let counts, stage;
-    if (cube.n >= 4) { const S = sim(cube.n), b = (cube.n === 4 ? status4 : status5)(S, readSim(S).st); counts = b.counts; stage = b.stage; }
+    if (cube.n === PYRA) { const b = pyraStatus(readPyra().st); counts = b.counts; stage = b.stage; }
+    else if (cube.n >= 4) { const S = sim(cube.n), b = (cube.n === 4 ? status4 : status5)(S, readSim(S).st); counts = b.counts; stage = b.stage; }
     else if (cube.n === 2) { const S = sim(2), r = best2(S, readSim(S).st).r; counts = [r.white, r.home, r.up]; stage = r.stage; }
     else { const st = readState(); counts = stageCounts(st, layout(st)); stage = stageOf(counts); }
     const list = stageList();
@@ -4412,9 +4637,9 @@ img { max-width: 100%; }
     return d > 0 ? 'top layer' : d < 0 ? 'bottom layer' : 'middle layer';
   }
   function getHint() {
-    if (isSpeed() || state.scrambling || anim || queue.length || cube.n === PYRA) return;
+    if (isSpeed() || state.scrambling || anim || queue.length) return;
     if (cube.n !== 3) {
-      const h = cube.n === 2 ? findHint2() : findHintBig();
+      const h = cube.n === PYRA ? findHintPyra() : cube.n === 2 ? findHint2() : findHintBig();
       hint.result = h; hint.pos = 0; hint.stale = false;
       hint.flat = (h.phases || []).flatMap((p, pi) => p.moves.map(m => ({ ...m, phase: pi })));
       setHighlight(h.meshes);
@@ -4492,6 +4717,7 @@ img { max-width: 100%; }
     $('hintNextBtn').disabled = $('hintPlayBtn').disabled = hint.pos >= hint.flat.length;
   }
   function flyToFrame(fr) {
+    if (fr.pyra) { flyTo(pyraEye(fr), PYRA_DIRS[fr.U]); return; }
     const r = cross3(fr.up, fr.front);
     flyTo(V(...add(fr.up, fr.front, r)), V(...fr.up));
   }
@@ -4503,7 +4729,7 @@ img { max-width: 100%; }
     if (hint.pos === 0 || hint.flat[hint.pos - 1].phase !== first.phase) flyToFrame(hint.result.phases[first.phase].frame);
     for (let i = hint.pos; i < end; i++) {
       const m = hint.flat[i];
-      enqueue({ label: m.label, axis: m.axis, layer: m.layer, angle: m.angle, wide: m.wide, hintIndex: i });
+      enqueue({ label: m.label, axis: m.axis, layer: m.layer, angle: m.angle, wide: m.wide, pv: m.pv, tip: m.tip, hintIndex: i });
     }
   }
   function onHintMove(item) {
