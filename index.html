@@ -411,6 +411,7 @@
   .support { margin: 0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 0.85rem; color: var(--muted); line-height: 1.4; }
   .tip-btn { display: inline-block; padding: 6px 12px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 0.85rem; text-decoration: none; white-space: nowrap; }
   .tip-btn:hover { filter: brightness(1.08); }
+  button.tip-btn { border: 0; cursor: pointer; font-family: inherit; line-height: inherit; }
   .tip-note { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); font-size: 0.9rem; line-height: 1.4; }
   .tip-note p { margin: 0; }
   .tip-note-actions { display: flex; align-items: center; gap: 8px; }
@@ -684,7 +685,6 @@
         <span class="ts-track" aria-hidden="true"><span class="ts-knob"></span></span>
         <span>Dark</span>
       </button>
-      <button class="learn-btn" id="installBtn" title="Add Desk Cube to your home screen or desktop, and play offline" hidden>Install app</button>
       <button class="learn-btn" id="lbBtn" hidden>Leaderboard</button>
       <button class="learn-btn" id="adminBtn" title="Site numbers (only you can see this)" hidden>Admin</button>
       <button class="learn-btn acct-btn" id="accountBtn" hidden>Sign in</button>
@@ -790,10 +790,12 @@
   </dialog>
   <dialog class="confirm" id="installDialog" aria-labelledby="installTitle">
     <form method="dialog">
-      <h3 id="installTitle">Install Desk Cube</h3>
-      <p>Tap the Share button <b>(the square with an arrow)</b> in Safari's toolbar, then choose <b>Add to Home Screen</b>. Desk Cube then opens full screen from its own icon, and works offline.</p>
+      <h3 id="installTitle">Get the Desk Cube app</h3>
+      <p>It opens in its own window from its own icon, works offline, and updates by itself. It's free, and your times and account stay the same.</p>
+      <p id="installSteps"></p>
       <div class="confirm-actions">
-        <button value="close" class="primary" autofocus>Got it</button>
+        <button type="button" class="primary" id="installNow" hidden>Install</button>
+        <button value="close" id="installClose" autofocus>Close</button>
       </div>
     </form>
   </dialog>
@@ -1167,6 +1169,7 @@
       <button id="compExitBtn" hidden>Exit competition</button>
     </section>
 
+    <p class="support" id="appBox" hidden><span id="appBoxText">Play in its own window, even offline.</span> <button class="tip-btn" id="installBtn" title="Add Desk Cube to your computer or home screen, and play offline">Get the desktop app</button></p>
     <p class="support" id="supportBox" hidden><span>Desk Cube is free with no ads.</span> <a class="tip-btn" id="kofiLink" target="_blank" rel="noopener">Leave a tip ☕</a></p>
 
     <section class="coach learn-only">
@@ -5275,27 +5278,53 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
   const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-  // Android and desktop Chrome/Edge offer an install prompt; iPhones and iPads install from the Share menu.
+  // Android and desktop Chrome/Edge offer an install prompt. Everywhere else the row stays and the dialog
+  // explains how, so people can always find it. Only the real site can install, so the Claude preview hides it.
   const appleTouch = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const phoneLike = appleTouch || /Android/.test(navigator.userAgent);
   let installPrompt = null;
+  $('installBtn').textContent = phoneLike ? 'Get the app' : 'Get the desktop app';
+  $('appBoxText').textContent = phoneLike ? 'Play from your home screen, even offline.' : 'Play in its own window, even offline.';
+  $('appBox').hidden = !realSite || installed;
+  function installSteps(ua = navigator.userAgent) {
+    if (appleTouch || /iPad|iPhone|iPod/.test(ua)) return 'In Safari, tap the Share button (the square with an arrow), then choose Add to Home Screen.';
+    if (/Android/.test(ua)) return 'Open your browser\'s menu, then choose Install app or Add to Home screen.';
+    if (/Firefox\//.test(ua)) return 'Firefox on a computer can\'t install this kind of app, so open deskcube.app in Chrome or Edge and press this button there.';
+    if (/Edg\//.test(ua)) return 'Open the Edge menu (the three dots), then Apps, then Install Desk Cube. If it\'s already installed, the menu offers to open it instead.';
+    if (/Chrome\//.test(ua)) return 'Look for the install icon at the right of the address bar, or open the Chrome menu (the three dots), then Cast, Save and Share, then Install. If it\'s already installed, Chrome offers to open it instead.';
+    if (/Safari\//.test(ua)) return 'In Safari\'s menu bar, choose File, then Add to Dock. On an older Mac, open deskcube.app in Chrome or Edge instead.';
+    return 'Open deskcube.app in Chrome or Edge, then press this button there.';
+  }
+  function showInstallDialog() {
+    $('installSteps').textContent = installPrompt ? '' : installSteps();
+    $('installSteps').hidden = !!installPrompt;
+    $('installNow').hidden = !installPrompt;
+    if ($('installDialog').showModal) $('installDialog').showModal();
+  }
+  async function runInstallPrompt() {
+    const p = installPrompt;
+    // A prompt can only be shown once; the browser offers a new one later if it's turned down.
+    installPrompt = null;
+    p.prompt();
+  }
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     installPrompt = e;
-    $('installBtn').hidden = false;
+    if ($('installDialog').open) showInstallDialog();
   });
-  window.addEventListener('appinstalled', () => { installPrompt = null; $('installBtn').hidden = true; });
-  if (realSite && appleTouch && !installed) $('installBtn').hidden = false;
-  $('installBtn').addEventListener('click', async () => {
-    if (installPrompt) {
-      const p = installPrompt;
-      installPrompt = null;
-      // A prompt can only be shown once; the browser offers a new one later if it's turned down.
-      $('installBtn').hidden = true;
-      p.prompt();
-      return;
-    }
-    if ($('installDialog').showModal) $('installDialog').showModal();
+  window.addEventListener('appinstalled', () => {
+    installPrompt = null;
+    $('appBox').hidden = true;
+    if ($('installDialog').open) $('installDialog').close();
   });
+  $('installBtn').addEventListener('click', () => { if (installPrompt) runInstallPrompt(); else showInstallDialog(); });
+  $('installNow').addEventListener('click', () => { $('installDialog').close(); if (installPrompt) runInstallPrompt(); });
+  // deskcube.app/#app is a link to send people straight to this.
+  function openAppLink() {
+    if (location.hash !== '#app') return;
+    history.replaceState(null, '', location.pathname + location.search);
+    if (realSite && !installed) showInstallDialog();
+  }
 
   // Opening a shared link: play the solve straight away.
   function openSharedReplay() {
@@ -6550,7 +6579,7 @@
     try { guest = localStorage.getItem(GUEST_KEY) === '1'; } catch (e) {}
     // Links from confirmation and reset emails carry the session in the address, so skip the welcome page for those.
     const fromEmail = /access_token|type=recovery|[?&]code=/.test(location.hash + location.search);
-    const sharedLink = /^#(watch=|daily$)/.test(location.hash);
+    const sharedLink = /^#(watch=|daily$|app$)/.test(location.hash);
     if (!guest && !hasStoredSession() && !fromEmail && !sharedLink) showLanding();
   }
 
@@ -6566,6 +6595,7 @@
   renderStages();
   openSharedReplay();
   openDailyLink();
+  openAppLink();
   requestAnimationFrame(step);
 })();
 </script>
