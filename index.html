@@ -1284,8 +1284,10 @@
   function orbit(dx, dy) {
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-    qa.setFromAxisAngle(up, -dx * 0.008);
-    qb.setFromAxisAngle(right, -dy * 0.008);
+    // The pyramid gets a gentler spin: it's a smaller shape, so the same drag felt quick.
+    const speed = cube.n === PYRA ? 0.0055 : 0.008;
+    qa.setFromAxisAngle(up, -dx * speed);
+    qb.setFromAxisAngle(right, -dy * speed);
     qa.multiply(qb);
     camera.position.applyQuaternion(qa);
     camera.up.copy(up).applyQuaternion(qa);
@@ -1735,7 +1737,8 @@
     const base = item.replay ? Math.min(450, Math.max(90, item.gap * 0.85)) / replay.speed : item.fast ? Math.min(55, turnMs) : turnMs;
     // Keep up with fast typing (or a fast replay): the more turns are waiting, the quicker each one plays.
     const waiting = item.user || item.replay ? queue.filter(q => q.user || q.replay).length : 0;
-    const dur = reduceMotion ? 0 : base * (!item.replay && !isPyra && Math.abs(angle) > Math.PI / 2 + 0.01 ? 1.4 : 1) / (1 + waiting);
+    // A pyramid turn goes a third further than a quarter turn, so it gets that much longer to look the same speed.
+    const dur = reduceMotion ? 0 : base * (isPyra ? 4 / 3 : !item.replay && Math.abs(angle) > Math.PI / 2 + 0.01 ? 1.4 : 1) / (1 + waiting);
     anim = { item, sel, axis, angle, t0: performance.now(), dur, vec: isPyra ? PYRA_DIRS[item.pv] : null };
   }
 
@@ -2133,6 +2136,9 @@
     moveLive(dx, dy);
   });
 
+  // Tips and centers sit right by their axis, so their true distance from it would spin them far too fast
+  // under a finger. Every piece counts as at least this far out, so all of them turn at a similar pace.
+  const PYRA_DRAG_R = 0.8;
   // Pyramid: of the corners this piece turns with, take the one whose turn best matches the drag.
   function startPyraDrag(dx, dy, d, from) {
     if (state.scrambling || anim || state.mode === 'replay' || state.mode === 'paused') return;
@@ -2155,7 +2161,7 @@
     pivot.updateMatrixWorld();
     for (const c of sel) pivot.attach(c);
     anim = { live: true, item: null, sel, axis: 'p', vec: PYRA_DIRS[best.pv], angle: 0 };
-    drag.live = { pyra: true, pv: best.pv, tip, axis: 'p', ux: best.ux, uy: best.uy, pxPerRad: 2 * best.sl * Math.max(0.35, best.r), at: performance.now(), v: 0, last: null };
+    drag.live = { pyra: true, pv: best.pv, tip, axis: 'p', ux: best.ux, uy: best.uy, pxPerRad: 2 * best.sl * Math.max(PYRA_DRAG_R, best.r), at: performance.now(), v: 0, last: null };
     moveLive(dx, dy);
   }
   function moveLive(dx, dy) {
@@ -2169,7 +2175,9 @@
       L.moved = true;
     }
     L.last = { t: now, along };
-    anim.angle = Math.max(-Math.PI * 1.1, Math.min(Math.PI * 1.1, along / L.pxPerRad));
+    // A cube layer can reach a half turn; a pyramid corner stops just past its third of a turn.
+    const most = L.pyra ? 2 * Math.PI / 3 * 1.1 : Math.PI * 1.1;
+    anim.angle = Math.max(-most, Math.min(most, along / L.pxPerRad));
     setPivot(anim.angle);
   }
 
@@ -2197,7 +2205,7 @@
       playClick(false);
     }
     const target = item ? q * Q : 0;
-    const dur = reduceMotion ? 0 : turnMs * Math.min(1.4, Math.abs(target - a) / Q);
+    const dur = reduceMotion ? 0 : turnMs * (L.pyra ? 4 / 3 : 1) * Math.min(1.4, Math.abs(target - a) / Q);
     anim = { item, sel: anim.sel, axis: L.axis, vec: anim.vec, angle: target, from: a, t0: performance.now(), dur };
   }
 
@@ -5109,7 +5117,7 @@
       // The pyramid has no whole-puzzle turns to type, so the arrows swing the view round it.
       e.preventDefault();
       camFly = null;
-      orbit({ ArrowLeft: -65, ArrowRight: 65 }[e.key] || 0, { ArrowUp: -65, ArrowDown: 65 }[e.key] || 0);
+      orbit({ ArrowLeft: -95, ArrowRight: 95 }[e.key] || 0, { ArrowUp: -95, ArrowDown: 95 }[e.key] || 0);
       return;
     }
     if (arrows[e.key]) { e.preventDefault(); if (!e.repeat) userMove(arrows[e.key]); return; }
