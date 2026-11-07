@@ -1266,7 +1266,8 @@
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
   scene.add(camera);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xaab4bc, 0.8));
+  const hemi = new THREE.HemisphereLight(0xffffff, 0xaab4bc, 0.8);
+  scene.add(hemi);
   const key = new THREE.DirectionalLight(0xffffff, 0.6);
   key.position.set(3, 5, 4);
   camera.add(key);
@@ -1286,6 +1287,7 @@
     accountSettingsChanged();
   }
   function placeCamera() {
+    hemi.position.set(0, 1, 0);
     if (cube.n === PYRA) {
       camFly = null;
       camera.up.copy(pyraUp());
@@ -1772,6 +1774,8 @@
       camera.position.copy(anim.cam.pos).applyAxisAngle(anim.vec, a);
       camera.up.copy(anim.cam.up).applyAxisAngle(anim.vec, a);
       camera.lookAt(0, 0, 0);
+      // The light turns too, so the pieces that stay put on screen keep their shading instead of flickering.
+      hemi.position.copy(anim.cam.light).applyAxisAngle(anim.vec, a);
     }
   }
   const snapM = new THREE.Matrix4();
@@ -2112,7 +2116,7 @@
       const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
       const ax = ['x', 'y', 'z'].reduce((a, b) => Math.abs(n[a]) >= Math.abs(n[b]) ? a : b);
       const normal = new THREE.Vector3(); normal[ax] = Math.sign(n[ax]);
-      drag = { mode: 'turn', touch, x: e.clientX, y: e.clientY, point: hit.point.clone(), normal, normalAxis: ax, cubie: hit.object.parent, done: false };
+      drag = { mode: 'turn', touch, x: e.clientX, y: e.clientY, point: hit.point.clone(), normal, normalAxis: ax, faceNormal: n, cubie: hit.object.parent, done: false };
     } else {
       // On touch screens one finger only ever turns; spinning the cube takes two fingers.
       drag = touch ? { mode: 'none' } : { mode: 'orbit', x: e.clientX, y: e.clientY };
@@ -2177,7 +2181,8 @@
   const PYRA_DRAG_R = 0.8, PYRA_DRAG_MAX = 1.3;
   // Pyramid: every piece belongs to a layer around each corner, as on a cube. Take the one whose turn best
   // matches the drag: its tip, the corner's two layers, or the layer furthest from that corner, which is
-  // a whole row of the face you're looking at, or the whole face when the corner is behind it.
+  // a whole row of the face you're touching. As on the cube, the face you're touching never spins: only the
+  // three corners of that face are in the running, so a drag along a row always moves that row.
   function startPyraDrag(dx, dy, d, from) {
     if (state.scrambling || anim || state.mode === 'replay' || state.mode === 'paused') return;
     const pos = new THREE.Vector3(), p = drag.point;
@@ -2189,6 +2194,7 @@
     const across = toScreen(p.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), 0.5));
     const unit = Math.hypot(across.x - from.x, across.y - from.y) || 1;
     PYRA_DIRS.forEach((v, pv) => {
+      if (drag.faceNormal && v.dot(drag.faceNormal) < -0.9) return;
       const tangent = new THREE.Vector3().crossVectors(v, p);
       const r = tangent.length();
       if (r < 1e-3) return;
@@ -2206,7 +2212,7 @@
     pivot.rotation.set(0, 0, 0);
     pivot.updateMatrixWorld();
     for (const c of sel) pivot.attach(c);
-    anim = { live: true, item: null, sel, axis: 'p', vec: PYRA_DIRS[best.pv], angle: 0, cam: best.layer ? { pos: camera.position.clone(), up: camera.up.clone() } : null };
+    anim = { live: true, item: null, sel, axis: 'p', vec: PYRA_DIRS[best.pv], angle: 0, cam: best.layer ? { pos: camera.position.clone(), up: camera.up.clone(), light: hemi.position.clone() } : null };
     camFly = null;
     drag.live = { pyra: true, pv: best.pv, tip, labels, axis: 'p', ux: best.ux * way, uy: best.uy * way, pxPerRad: 2 * unit * Math.min(PYRA_DRAG_MAX, Math.max(PYRA_DRAG_R, best.r)), at: performance.now(), v: 0, last: null };
     moveLive(dx, dy);
@@ -2222,9 +2228,8 @@
       L.moved = true;
     }
     L.last = { t: now, along };
-    // A cube layer can reach a half turn; a pyramid corner stops just past its third of a turn.
-    const most = L.pyra ? 2 * Math.PI / 3 * 1.1 : Math.PI * 1.1;
-    anim.angle = Math.max(-most, Math.min(most, along / L.pxPerRad));
+    // A cube layer can reach a half turn. A pyramid turn carries on round as far as you take it.
+    anim.angle = L.pyra ? along / L.pxPerRad : Math.max(-Math.PI * 1.1, Math.min(Math.PI * 1.1, along / L.pxPerRad));
     setPivot(anim.angle);
   }
 
@@ -2239,11 +2244,12 @@
     const v = L.last && performance.now() - L.last.t < 80 ? L.v : 0;
     let q = Math.round(a / Q);
     if (!q && a && (Math.abs(a) > Q * 0.18 || (Math.abs(v) > 0.2 && Math.sign(v) === Math.sign(a)))) q = Math.sign(a);
-    const most = L.pyra ? 1 : 2;   // a pyramid corner's "half turn" is just the other way round
-    q = Math.max(-most, Math.min(most, q));
+    if (!L.pyra) q = Math.max(-2, Math.min(2, q));
+    // A pyramid settles on the nearest third however far round it went. Three thirds is back where it started.
+    const net = L.pyra ? [0, 1, -1][((q % 3) + 3) % 3] : q;
     let item = null;
-    if (q && !state.scrambling && state.mode !== 'replay' && state.mode !== 'paused') {
-      if (L.pyra) item = { label: L.labels[Math.sign(q)], axis: 'p', layer: 1, pv: L.pv, tip: L.tip, angle: q * Q, user: true, at: L.at, madeAt: performance.now() };
+    if (net && !state.scrambling && state.mode !== 'replay' && state.mode !== 'paused') {
+      if (L.pyra) item = { label: L.labels[net], axis: 'p', layer: 1, pv: L.pv, tip: L.tip, angle: net * Q, user: true, at: L.at, madeAt: performance.now() };
       else {
         const quarter = labelFor(L.axis, L.layer, Math.sign(q), viewFrame());
         item = { label: Math.abs(q) === 2 ? quarter.replace("'", '') + '2' : quarter, axis: L.axis, layer: L.layer, angle: q * Q, user: true, at: L.at, madeAt: performance.now() };
@@ -2251,8 +2257,11 @@
       if (state.mode === 'ready' || state.mode === 'inspect') startTimer(L.at);
       playClick(false);
     }
-    const target = item ? q * Q : 0;
-    const dur = reduceMotion ? 0 : turnMs * (L.pyra ? 4 / 3 : 1) * Math.min(1.4, Math.abs(target - a) / Q);
+    // A pyramid carries on to where it's heading rather than unwinding, and always glides the last part, so
+    // letting go never looks like a jump.
+    const target = L.pyra ? q * Q : item ? q * Q : 0;
+    const dur = reduceMotion ? 0 : L.pyra ? turnMs * 4 / 3 * Math.max(0.6, Math.min(1.4, Math.abs(target - a) / Q))
+      : turnMs * Math.min(1.4, Math.abs(target - a) / Q);
     anim = { item, sel: anim.sel, axis: L.axis, vec: anim.vec, cam: anim.cam, angle: target, from: a, t0: performance.now(), dur };
   }
 
