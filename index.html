@@ -836,6 +836,31 @@
       </div>
       <a href="https://dash.cloudflare.com/?to=/:account/web-analytics" target="_blank" rel="noopener">Visitors on Cloudflare ↗</a>
     </div>
+    <h4 class="admin-h">Visitors</h4>
+    <p class="admin-foot" id="adminVisitMsg" role="status"></p>
+    <div id="adminVisitors" hidden>
+      <div class="stats admin-tiles" id="adminVisitTiles"></div>
+      <h4 class="admin-h">Visits per day</h4>
+      <div class="admin-chart"><svg id="adminVisitsSvg" role="img" aria-label="Visits per day"></svg><div class="prog-tip" id="adminVisitsTip" hidden></div></div>
+      <div class="admin-cols">
+        <div>
+          <h4 class="admin-h">Where they came from</h4>
+          <div class="acct-list-wrap"><table class="acct-list admin-list">
+            <thead><tr><th>Site</th><th>Visits</th></tr></thead>
+            <tbody id="adminReferers"></tbody>
+          </table></div>
+        </div>
+        <div>
+          <h4 class="admin-h">Countries</h4>
+          <div class="acct-list-wrap"><table class="acct-list admin-list">
+            <thead><tr><th>Country</th><th>Visits</th></tr></thead>
+            <tbody id="adminCountries"></tbody>
+          </table></div>
+        </div>
+      </div>
+      <p class="admin-foot" id="adminDevices"></p>
+    </div>
+    <h4 class="admin-h">Accounts and solves</h4>
     <div class="stats admin-tiles" id="adminTiles"></div>
     <p class="admin-foot" id="adminSizes"></p>
     <h4 class="admin-h">Solves per day</h4>
@@ -858,7 +883,7 @@
         </table></div>
       </div>
     </div>
-    <p class="admin-foot">These numbers come from accounts, so people who play without signing in only show up in the Cloudflare visitor numbers. Days are in UTC.</p>
+    <p class="admin-foot">Visitors come from Cloudflare and count everyone, signed in or not, without cookies. The other numbers come from accounts, so people who play without signing in aren't in them. Days are in UTC.</p>
     <p class="acct-msg" id="adminMsg" role="status"></p>
   </dialog>
   <div class="welcome-cover" id="welcomeCover" hidden></div>
@@ -6101,7 +6126,7 @@
     if (user) { acct.loaded = false; if (acctDialog.open) renderAccount(); await loadAccount(); } else signedOut();
   }
 
-  const admin = { days: 30, seq: 0, data: null };
+  const admin = { days: 30, seq: 0, data: null, visitSeq: 0 };
   async function checkAdmin() {
     const id = acct.user && acct.user.id;
     let yes = false;
@@ -6115,6 +6140,7 @@
   async function loadAdmin() {
     const seq = ++admin.seq, days = admin.days;
     $('adminDialog').querySelectorAll('[data-days]').forEach(b => b.setAttribute('aria-checked', +b.dataset.days === days));
+    loadVisitors(days);
     $('adminMsg').className = 'acct-msg';
     $('adminMsg').textContent = 'Loading…';
     const { data, error } = await acct.sb.rpc('admin_stats', { days });
@@ -6127,6 +6153,59 @@
     $('adminMsg').textContent = '';
     admin.data = data;
     renderAdmin();
+  }
+  // Visitor numbers come through a Supabase function that holds the Cloudflare token, so they load on their own.
+  async function loadVisitors(days) {
+    const seq = ++admin.visitSeq;
+    $('adminVisitMsg').textContent = 'Loading…';
+    let data = null, error = null;
+    try { ({ data, error } = await acct.sb.functions.invoke('admin-visitors', { body: { days } })); }
+    catch (err) { error = err; }
+    if (seq !== admin.visitSeq) return;
+    if (error) {
+      // A function that isn't there yet (or can't be reached) comes back as an error from the client.
+      showVisitorMsg(error.name === 'FunctionsHttpError' && error.context && error.context.status === 403
+        ? 'Only admins can see visitor numbers.'
+        : 'Visitor numbers aren\'t switched on yet: the admin-visitors function hasn\'t been deployed, or couldn\'t be reached.');
+      return;
+    }
+    if (data && data.error === 'not_configured') showVisitorMsg('Visitor numbers aren\'t switched on yet: add the CF_API_TOKEN and CF_ACCOUNT_ID secrets to the admin-visitors function in Supabase.');
+    else if (data && data.error) showVisitorMsg('Cloudflare wouldn\'t give the numbers: ' + (data.detail || data.error));
+    else renderVisitors(data);
+  }
+  function showVisitorMsg(text) {
+    $('adminVisitMsg').textContent = text;
+    $('adminVisitors').hidden = true;
+  }
+  function renderVisitors(v) {
+    const n = x => Number(x || 0).toLocaleString(), today = v.days.length ? v.days[v.days.length - 1] : { visits: 0, views: 0 };
+    $('adminVisitMsg').textContent = v.partial ? 'Cloudflare only gave part of this range, so the older days may show as empty.' : '';
+    $('adminVisitors').hidden = false;
+    const box = $('adminVisitTiles');
+    box.innerHTML = '';
+    for (const [label, value] of [['Visits', n(v.visits)], ['Page views', n(v.views)], ['Visits today', n(today.visits)]]) {
+      const tile = document.createElement('div');
+      tile.className = 'stat';
+      tile.innerHTML = '<span class="label"></span><span class="value"></span>';
+      tile.firstChild.textContent = label;
+      tile.lastChild.textContent = value;
+      box.appendChild(tile);
+    }
+    const dayName = day => new Date(day + 'T00:00:00Z').toLocaleDateString([], { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    adminBars('adminVisitsSvg', 'adminVisitsTip', v.days, 'visits', p => [['Visits', p.visits], ['Page views', p.views]], dayName);
+    const fill = (id, rows, blank) => {
+      const body = $(id);
+      body.innerHTML = '';
+      if (!rows.length) { const tr = document.createElement('tr'), td = document.createElement('td'); td.colSpan = 2; td.textContent = 'None yet'; tr.appendChild(td); body.appendChild(tr); return; }
+      for (const r of rows) {
+        const tr = document.createElement('tr');
+        for (const text of [r.name || blank, n(r.visits)]) { const td = document.createElement('td'); td.textContent = text; tr.appendChild(td); }
+        body.appendChild(tr);
+      }
+    };
+    fill('adminReferers', v.referers, 'Direct or unknown');
+    fill('adminCountries', v.countries, 'Unknown');
+    $('adminDevices').textContent = v.devices.length ? 'Devices: ' + v.devices.map(d => `${d.name || 'unknown'} ${n(d.visits)}`).join(' · ') : '';
   }
   function renderAdmin() {
     const d = admin.data, n = v => Number(v || 0).toLocaleString();
