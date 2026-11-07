@@ -1782,6 +1782,13 @@ img { max-width: 100%; }
   function setPivot(a) {
     if (anim.vec) pivot.setRotationFromAxisAngle(anim.vec, a);
     else pivot.rotation[anim.axis] = a;
+    // A pyramid layer or face drag: the corner opposite turns and the view turns with it, so that corner
+    // holds still on screen and the layer you grabbed is what moves. It's the same move mechanically.
+    if (anim.cam) {
+      camera.position.copy(anim.cam.pos).applyAxisAngle(anim.vec, a);
+      camera.up.copy(anim.cam.up).applyAxisAngle(anim.vec, a);
+      camera.lookAt(0, 0, 0);
+    }
   }
   const snapM = new THREE.Matrix4();
   function finishAnim() {
@@ -2174,30 +2181,41 @@ img { max-width: 100%; }
 
   // Tips and centers sit right by their axis, so their true distance from it would spin them far too fast
   // under a finger. Every piece counts as at least this far out, so all of them turn at a similar pace.
-  const PYRA_DRAG_R = 0.8;
-  // Pyramid: of the corners this piece turns with, take the one whose turn best matches the drag.
+  const PYRA_DRAG_R = 0.8, PYRA_DRAG_MAX = 1.3;
+  // Pyramid: every piece belongs to a layer around each corner, as on a cube. Take the one whose turn best
+  // matches the drag: its tip, the corner's two layers, or the layer furthest from that corner, which is
+  // a whole row of the face you're looking at, or the whole face when the corner is behind it.
   function startPyraDrag(dx, dy, d, from) {
     if (state.scrambling || anim || state.mode === 'replay' || state.mode === 'paused') return;
     const pos = new THREE.Vector3(), p = drag.point;
     drag.cubie.getWorldPosition(pos);
     const onTip = PYRA_DIRS.findIndex(v => pos.dot(v) > PYRA_TIP_AT);
     let best = null;
+    // Half a unit across the screen in pixels. Measured square-on, so a corner seen at a slant doesn't
+    // race ahead of the finger.
+    const across = toScreen(p.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), 0.5));
+    const unit = Math.hypot(across.x - from.x, across.y - from.y) || 1;
     PYRA_DIRS.forEach((v, pv) => {
-      if (pos.dot(v) <= PYRA_BIG_AT) return;
       const tangent = new THREE.Vector3().crossVectors(v, p);
       const r = tangent.length();
       if (r < 1e-3) return;
       const to = toScreen(p.clone().addScaledVector(tangent.divideScalar(r), 0.5));
-      const sx = to.x - from.x, sy = to.y - from.y, sl = Math.hypot(sx, sy) || 1, score = Math.abs((d.x * sx + d.y * sy) / sl);
-      if (!best || score > best.score) best = { pv, score, ux: sx / sl, uy: sy / sl, sl, r };
+      const sx = to.x - from.x, sy = to.y - from.y, sl = Math.hypot(sx, sy) || 1;
+      const score = Math.abs((d.x * sx + d.y * sy) / sl);
+      if (!best || score > best.score) best = { pv, score, ux: sx / sl, uy: sy / sl, sl, r, layer: pos.dot(v) <= PYRA_BIG_AT };
     });
     if (!best) return;
-    const tip = onTip === best.pv, sel = pyraSel(best.pv, tip);
+    const tip = onTip === best.pv;
+    // A far layer moves by turning the corner the other way with the view, so the drag runs backwards.
+    const sel = pyraSel(best.pv, tip), way = best.layer ? -1 : 1;
+    // Named now: the view is about to move, and the letters follow the view.
+    const labels = { [-1]: pyraLabel(best.pv, tip, -1), 1: pyraLabel(best.pv, tip, 1) };
     pivot.rotation.set(0, 0, 0);
     pivot.updateMatrixWorld();
     for (const c of sel) pivot.attach(c);
-    anim = { live: true, item: null, sel, axis: 'p', vec: PYRA_DIRS[best.pv], angle: 0 };
-    drag.live = { pyra: true, pv: best.pv, tip, axis: 'p', ux: best.ux, uy: best.uy, pxPerRad: 2 * best.sl * Math.max(PYRA_DRAG_R, best.r), at: performance.now(), v: 0, last: null };
+    anim = { live: true, item: null, sel, axis: 'p', vec: PYRA_DIRS[best.pv], angle: 0, cam: best.layer ? { pos: camera.position.clone(), up: camera.up.clone() } : null };
+    camFly = null;
+    drag.live = { pyra: true, pv: best.pv, tip, labels, axis: 'p', ux: best.ux * way, uy: best.uy * way, pxPerRad: 2 * unit * Math.min(PYRA_DRAG_MAX, Math.max(PYRA_DRAG_R, best.r)), at: performance.now(), v: 0, last: null };
     moveLive(dx, dy);
   }
   function moveLive(dx, dy) {
@@ -2232,7 +2250,7 @@ img { max-width: 100%; }
     q = Math.max(-most, Math.min(most, q));
     let item = null;
     if (q && !state.scrambling && state.mode !== 'replay' && state.mode !== 'paused') {
-      if (L.pyra) item = { label: pyraLabel(L.pv, L.tip, q), axis: 'p', layer: 1, pv: L.pv, tip: L.tip, angle: q * Q, user: true, at: L.at, madeAt: performance.now() };
+      if (L.pyra) item = { label: L.labels[Math.sign(q)], axis: 'p', layer: 1, pv: L.pv, tip: L.tip, angle: q * Q, user: true, at: L.at, madeAt: performance.now() };
       else {
         const quarter = labelFor(L.axis, L.layer, Math.sign(q), viewFrame());
         item = { label: Math.abs(q) === 2 ? quarter.replace("'", '') + '2' : quarter, axis: L.axis, layer: L.layer, angle: q * Q, user: true, at: L.at, madeAt: performance.now() };
@@ -2242,7 +2260,7 @@ img { max-width: 100%; }
     }
     const target = item ? q * Q : 0;
     const dur = reduceMotion ? 0 : turnMs * (L.pyra ? 4 / 3 : 1) * Math.min(1.4, Math.abs(target - a) / Q);
-    anim = { item, sel: anim.sel, axis: L.axis, vec: anim.vec, angle: target, from: a, t0: performance.now(), dur };
+    anim = { item, sel: anim.sel, axis: L.axis, vec: anim.vec, cam: anim.cam, angle: target, from: a, t0: performance.now(), dur };
   }
 
   function endDrag(e) {
