@@ -232,5 +232,54 @@ $$;
 revoke all on function public.admin_stats(int) from public;
 grant execute on function public.admin_stats(int) to authenticated;
 
+-- ===== Update 6: the AI coach (optional, not in use: only for supabase/functions/coach-solve) =====
+-- Counts how many coach looks each person has had today (UTC). Each look costs the site money, so there's a
+-- limit per person and one across the whole site. Change the two numbers below to change them.
+create table if not exists public.coach_uses (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  day date not null,
+  uses int not null default 0,
+  primary key (user_id, day)
+);
+alter table public.coach_uses enable row level security;
+revoke all on public.coach_uses from anon, authenticated;
+
+-- Takes one look for the signed-in person. The limits live here so the page can't change them.
+create or replace function public.coach_take()
+returns jsonb
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  per_person constant int := 5;
+  whole_site constant int := 200;
+  me uuid := auth.uid();
+  today date := (now() at time zone 'utc')::date;
+  used int;
+begin
+  if me is null then return jsonb_build_object('error', 'signed_out'); end if;
+  if (select coalesce(sum(uses), 0) from public.coach_uses where day = today) >= whole_site then
+    return jsonb_build_object('error', 'busy');
+  end if;
+  insert into public.coach_uses as c (user_id, day, uses) values (me, today, 1)
+  on conflict (user_id, day) do update set uses = c.uses + 1 where c.uses < per_person
+  returning c.uses into used;
+  if used is null then return jsonb_build_object('error', 'limit'); end if;
+  return jsonb_build_object('left', per_person - used, 'uid', me);
+end;
+$$;
+revoke all on function public.coach_take() from public, anon;
+grant execute on function public.coach_take() to authenticated;
+
+-- Hands a look back when the coach couldn't answer. Only the server can call this.
+create or replace function public.coach_give_back(who uuid)
+returns void
+language sql security definer set search_path = ''
+as $$
+  update public.coach_uses set uses = greatest(uses - 1, 0)
+  where user_id = who and day = (now() at time zone 'utc')::date;
+$$;
+revoke all on function public.coach_give_back(uuid) from public, anon, authenticated;
+grant execute on function public.coach_give_back(uuid) to service_role;
+
 -- To make an account an admin, run this once with that account's email in place of the example:
 -- insert into public.admins (user_id) select id from auth.users where email = 'you@example.com' on conflict do nothing;

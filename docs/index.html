@@ -452,6 +452,15 @@ img { max-width: 100%; }
   .tip-note p { margin: 0; }
   .tip-note-actions { display: flex; align-items: center; gap: 8px; }
   .tip-note-actions button { padding: 6px 12px; }
+  .ai-coach { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); font-size: 0.9rem; line-height: 1.45; }
+  .ai-coach p { margin: 0; }
+  .ai-coach-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .ai-coach-head h2 { margin: 0; }
+  .ai-coach-head button { padding: 2px 10px; }
+  .ai-coach-note { color: var(--muted); font-size: 0.78rem; }
+  .ai-coach-result { display: flex; flex-direction: column; gap: 10px; }
+  .ai-coach-focus { display: flex; flex-direction: column; gap: 3px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .ai-coach-focus b { font-weight: 600; }
   .coach-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .coach-head h2 { margin: 0; }
   .coach-head button { padding: 6px 12px; display: flex; align-items: center; gap: 6px; }
@@ -1098,6 +1107,17 @@ img { max-width: 100%; }
         <button id="tipNoteClose">Not now</button>
       </div>
     </div>
+
+    <section class="ai-coach" id="coachCard" aria-live="polite" hidden>
+      <div class="ai-coach-head">
+        <h2>Your coach</h2>
+        <button id="coachClose" aria-label="Close the coach">×</button>
+      </div>
+      <p id="coachMsg"></p>
+      <div class="ai-coach-result" id="coachResult" hidden></div>
+      <div><button class="tip-btn" id="coachBtn">Coach me</button></div>
+      <p class="ai-coach-note" id="coachNote" hidden>Based on this solve's times and turns.</p>
+    </section>
 
     <div class="panel" id="panel-lesson" role="tabpanel" hidden>
       <div class="lesson-top">
@@ -1913,6 +1933,7 @@ img { max-width: 100%; }
       if (!queue.some(q => q.scramble)) {
         state.scrambling = false;
         state.rec = [];
+        state.coachLog = { done: {}, hints: 0, undos: 0 };
         if (dailyOn() || (compActive() && comp.roundId)) {
           // Inspection: 15 seconds to look; the timer starts on the first turn or when time runs out.
           state.mode = 'inspect';
@@ -1929,10 +1950,16 @@ img { max-width: 100%; }
       }
       return;
     }
-    // Record the solve for its replay: each turn with the time it was made.
-    if (state.rec && (item.user || item.undo) && (state.mode === 'running' || state.mode === 'ready' || state.mode === 'inspect')) {
-      const t = state.mode === 'running' && item.at >= state.start ? item.at - state.start : 0;
-      state.rec.push(encodeTurn(item, t));
+    // Record the solve for its replay: each turn with the time it was made. "Show me" hint moves count too:
+    // they turn the cube just the same, and they're timed as they finish because they play one after another.
+    const shown = item.hintIndex !== undefined && !item.undo;
+    if (state.rec && (item.user || item.undo || shown) && (state.mode === 'running' || state.mode === 'ready' || state.mode === 'inspect')) {
+      const at = shown ? performance.now() : item.at;
+      const t = state.mode === 'running' && at >= state.start ? at - state.start : 0;
+      // A key pressed while hint moves play is turned after them, so it can't be earlier than they are.
+      const before = state.rec.length ? +state.rec[state.rec.length - 1].split('@')[1] * 10 : 0;
+      state.rec.push(encodeTurn(item, Math.max(t, before)));
+      if (state.coachLog) { if (shown) state.coachLog.hints++; if (item.undo) state.coachLog.undos++; }
     }
     onHintMove(item);
     if (!queue.length) renderStages();
@@ -1968,14 +1995,14 @@ img { max-width: 100%; }
       state.mode = 'solved';
       renderTime(t);
       state.solves++;
-      const pb = !state.best || t < state.best;
+      const pb = !state.best || t < state.best, oldBest = state.best;
       playChime(pb && state.best ? 'best' : 'solved');
       if (pb) state.best = t;
       save();
       const replayText = (state.rec || []).join(' ');
       lastReplay = { scramble: state.scrambleText, replay: replayText, time: t, size: cube.n };
       setStatus(`Solved in ${fmt(t)} with ${state.moves} moves.${pb ? ' New best!' : ''}`, true);
-      if (!compActive()) showTipNote();
+      if (!compActive()) { showTipNote(); showCoach(t, replayText, oldBest); }
       if (dailyOn()) dailySolveDone(t, false, replayText);
       else if (compActive() && comp.roundId) compSolveDone(t, false, replayText);
       else accountOnSolve(t, { replay: replayText });
@@ -1996,6 +2023,7 @@ img { max-width: 100%; }
     state.mode = 'running';
     state.start = now;
     hideTipNote();
+    hideCoach();
     setStatus('Solving…');
     renderPanel();
   }
@@ -2032,6 +2060,7 @@ img { max-width: 100%; }
     if (anim) finishAnim();
     queue = [];
     state.rec = null;
+    state.coachLog = null;
     // Start every scramble from white on top, green in front, seen from the corner.
     buildCube();
     placeCamera();
@@ -3480,6 +3509,7 @@ img { max-width: 100%; }
     if (dailyOn() || strictSolving() || paused || state.scrambling) return false;
     useSize(n);
     reset();
+    hideCoach();
     setStatus(`Solved ${puzzleName(n)}. Press Scramble to start a timed solve.`);
     if (!quiet) accountSettingsChanged();
     return true;
@@ -4676,6 +4706,7 @@ img { max-width: 100%; }
     else if (cube.n >= 4) { const S = sim(cube.n), b = (cube.n === 4 ? status4 : status5)(S, readSim(S).st); counts = b.counts; stage = b.stage; }
     else if (cube.n === 2) { const S = sim(2), r = best2(S, readSim(S).st).r; counts = [r.white, r.home, r.up]; stage = r.stage; }
     else { const st = readState(); counts = stageCounts(st, layout(st)); stage = stageOf(counts); }
+    if (state.coachLog && state.mode === 'running') noteStage(state.coachLog, stage);
     const list = stageList();
     [...$('stages').children].forEach((li, i) => {
       li.className = i < stage ? 'done' : i === stage ? 'now' : '';
@@ -5194,6 +5225,161 @@ img { max-width: 100%; }
     e.preventDefault();
     userMove(withHeld(e.shiftKey ? base + "'" : base));
   });
+
+  // ---------- The coach ----------
+  // After a solve the page works out the numbers itself: time and turns per step, pauses, turns that cancelled
+  // out. Rules then pick what's most worth working on and point at a lesson. It all happens here in the page.
+  var coach = { stats: null };
+  // When each step was first finished, as time since the start. The moves of a later step break earlier ones for
+  // a moment, as algorithms do, so falling back doesn't undo it.
+  function noteStage(log, stage) {
+    const t = performance.now() - state.start;
+    for (let i = 0; i < stage; i++) if (log.done[i] === undefined) log.done[i] = t;
+  }
+  const secs = ms => Math.round(ms / 100) / 10;
+  // The numbers for one finished solve. Works from the replay, so what's measured is what can be watched back.
+  function solveStats(time, replayText, oldBest, log) {
+    const turns = decodeReplay(replayText).filter(m => m.layer !== null);
+    // Pairs of turns that undo each other, whether or not Undo was pressed: they cost time and moved nothing.
+    const stack = [];
+    let cancelled = 0;
+    for (const m of turns) {
+      const key = m.pv !== undefined ? `${m.pv}${m.tip}` : `${m.axis}${m.layer}${m.wide}`, top = stack[stack.length - 1];
+      if (top && top.key === key && Math.abs(top.angle + m.angle) < 0.01) { stack.pop(); cancelled += 2; }
+      else stack.push({ key, angle: m.angle });
+    }
+    // Steps need the whole solve seen live, so a solve carried over a page reload goes without them.
+    const list = stageList(), haveSteps = log && list.every((_, i) => log.done[i] !== undefined);
+    const ends = haveSteps ? list.map((_, i) => Math.min(log.done[i], time)) : [];
+    const stepAt = ms => { const i = ends.findIndex(e => ms <= e); return i < 0 ? list.length - 1 : i; };
+    const stages = ends.map((end, i) => {
+      const from = i ? ends[i - 1] : 0;
+      return { name: list[i].name, lesson: list[i].lesson, seconds: secs(end - from), turns: 0, pause_seconds: 0 };
+    });
+    for (const m of turns) if (haveSteps) stages[stepAt(m.t)].turns++;
+    // A gap of a second or more between turns counts as stopping to look.
+    const pauses = [];
+    turns.forEach((m, i) => {
+      if (!i || m.t - turns[i - 1].t < 1000) return;
+      const gap = m.t - turns[i - 1].t;
+      pauses.push({ at_seconds: secs(turns[i - 1].t), seconds: secs(gap), stage: haveSteps ? list[stepAt(m.t)].name : '' });
+      if (haveSteps) stages[stepAt(m.t)].pause_seconds = secs(stages[stepAt(m.t)].pause_seconds * 1000 + gap);
+    });
+    return {
+      size: cube.n, mode: isSpeed() ? 'speed' : 'learning', time_seconds: secs(time), turns: turns.length,
+      turns_per_second: Math.round(turns.length / (time / 1000) * 100) / 100, cancelled_turns: cancelled,
+      hint_turns: log ? log.hints : 0, undos: log ? log.undos : 0,
+      previous_best_seconds: oldBest ? secs(oldBest) : null, solves_so_far: state.solves,
+      pause_total_seconds: secs(pauses.reduce((a, p) => a + p.seconds * 1000, 0)),
+      longest_pauses: pauses.sort((a, b) => b.seconds - a.seconds).slice(0, 3), stages,
+      lessons: steps().map((l, i) => ({ id: i, title: l.title })), has_trainer: cube.n === 3,
+    };
+  }
+  const howLong = n => { const r = n < 20 ? Math.round(n * 10) / 10 : Math.round(n); return r >= 60 ? `${Math.floor(r / 60)} min ${r % 60} sec` : `${r} second${r === 1 ? '' : 's'}`; };
+  // What to work on after this solve, most useful first. Each rule scores itself, so a solve gets the
+  // two or three things that stand out most, not a list of everything.
+  function coachAdvice(st) {
+    const NO_LINK = -1, TRAINER = -2, out = [];
+    const hintShare = st.turns ? st.hint_turns / st.turns : 0, pauseShare = st.time_seconds ? st.pause_total_seconds / st.time_seconds : 0;
+    const lessonFor = stage => (stage && st.lessons.some(l => l.id === stage.lesson) ? stage.lesson : NO_LINK);
+    // A solve Show me mostly played says little about the player's own timing, so that's all it gets told.
+    if (hintShare >= 0.2) out.push({
+      score: 200 * hintShare,
+      title: 'Try more of it yourself',
+      detail: `Show me played ${st.hint_turns} of your ${st.turns} turns. Next time, read the hint and try the moves yourself before you press Show me.`,
+      lesson_id: NO_LINK,
+    });
+    const ownTiming = hintShare < 0.5;
+    const slowest = st.stages.reduce((m, x) => (!m || x.seconds > m.seconds ? x : m), null);
+    if (ownTiming && slowest && st.stages.length >= 3 && slowest.seconds >= 3 && slowest.seconds / st.time_seconds >= 0.25) {
+      const share = slowest.seconds / st.time_seconds, looking = slowest.pause_seconds / slowest.seconds >= 0.4;
+      out.push({
+        score: 100 * share,
+        title: `Focus on: ${slowest.name}`,
+        detail: `This step took ${howLong(slowest.seconds)}, ${Math.round(share * 100)}% of your solve. ` + (looking
+          ? `${howLong(slowest.pause_seconds)} of that was stopping to look, so go back over what to look for here.`
+          : `You kept turning for most of it, so practising this step until the moves feel automatic should help most.`),
+        lesson_id: !looking && st.has_trainer ? TRAINER : lessonFor(slowest),
+      });
+    }
+    const slowestUsed = out.some(f => f.title === `Focus on: ${slowest && slowest.name}`);
+    const pause = st.longest_pauses.find(p => !(slowestUsed && p.stage === slowest.name));
+    if (ownTiming && pause && pause.seconds >= 5) out.push({
+      score: Math.min(60, 4 * pause.seconds),
+      title: 'Your longest stop',
+      detail: `You stopped for ${howLong(pause.seconds)} ${pause.stage ? `during ${pause.stage.toLowerCase()}` : `about ${howLong(pause.at_seconds)} in`}. Next time you get stuck there, try naming what you're looking for before you search for it.`,
+      lesson_id: lessonFor(st.stages.find(x => x.name === pause.stage)),
+    });
+    if (ownTiming && pauseShare >= 0.5) out.push({
+      score: 80 * pauseShare,
+      title: 'Keep the cube moving',
+      detail: `You spent ${howLong(st.pause_total_seconds)} of ${howLong(st.time_seconds)} stopped. While you finish one step, start looking for the pieces of the next one, so you have less to find when you get there.`,
+      lesson_id: NO_LINK,
+    });
+    if (st.cancelled_turns >= 4 && st.cancelled_turns / st.turns >= 0.05) out.push({
+      score: Math.min(70, 300 * st.cancelled_turns / st.turns),
+      title: 'Look before you turn',
+      detail: `${st.cancelled_turns} of your ${st.turns} turns undid each other${st.undos ? `, including ${st.undos} with Undo` : ''}. Taking a moment to check the next move usually costs less time than taking one back.`,
+      lesson_id: NO_LINK,
+    });
+    if (!out.length) out.push({
+      score: 1,
+      title: st.previous_best_seconds ? 'Chase your best' : 'Set a time to beat',
+      detail: st.previous_best_seconds
+        ? 'Nothing in this solve stands out as a problem. Keep your turning steady and go again: consistency is what brings your best time down.'
+        : 'Nothing in this solve stands out as a problem. Solve a few more and your times will show which steps to work on.',
+      lesson_id: NO_LINK,
+    });
+    const time = howLong(st.time_seconds), best = st.previous_best_seconds;
+    const summary = hintShare >= 0.5 ? `You finished in ${time}, with Show me playing most of the turns.`
+      : !best ? `You solved it in ${time} with ${st.turns} turns.`
+      : st.time_seconds < best ? `A new best! ${time} with ${st.turns} turns, beating your old best of ${howLong(best)}.`
+      : `You solved it in ${time} with ${st.turns} turns. Your best is ${howLong(best)}.`;
+    return { summary, focuses: out.sort((x, y) => y.score - x.score).slice(0, 3) };
+  }
+  function showCoach(time, replayText, oldBest) {
+    coach.stats = solveStats(time, replayText, oldBest, state.coachLog);
+    $('coachMsg').textContent = 'Want a look at that solve? I\'ll pick out what to work on next.';
+    $('coachResult').hidden = true;
+    $('coachBtn').hidden = false;
+    $('coachNote').hidden = true;
+    $('coachCard').hidden = false;
+  }
+  function hideCoach() { $('coachCard').hidden = true; }
+  // Lessons and the trainer live in Learning mode.
+  function openCoachLink(id) {
+    if (isSpeed()) setMode('learn');
+    if (id === -2) { showTab('trainer'); return; }
+    goToStep(id);
+    showTab('lesson');
+  }
+  function renderCoach(a) {
+    $('coachMsg').textContent = a.summary;
+    const box = $('coachResult');
+    box.innerHTML = '';
+    for (const f of a.focuses) {
+      const row = document.createElement('div');
+      row.className = 'ai-coach-focus';
+      const title = document.createElement('b'), detail = document.createElement('span');
+      title.textContent = f.title;
+      detail.textContent = f.detail;
+      row.append(title, detail);
+      const lesson = coach.stats.lessons.find(l => l.id === f.lesson_id);
+      if (lesson || f.lesson_id === -2) {
+        const go = document.createElement('button');
+        go.className = 'link-btn';
+        go.textContent = lesson ? `Open the lesson: ${lesson.title}` : 'Open the trainer';
+        go.addEventListener('click', () => openCoachLink(f.lesson_id));
+        row.append(go);
+      }
+      box.append(row);
+    }
+    box.hidden = false;
+    $('coachBtn').hidden = true;
+    $('coachNote').hidden = false;
+  }
+  $('coachBtn').addEventListener('click', () => { if (coach.stats) renderCoach(coachAdvice(coach.stats)); });
+  $('coachClose').addEventListener('click', hideCoach);
 
   // ---------- Solve replays ----------
   // A replay is the scramble plus every turn of the solve with the time it was made, as text tokens:
