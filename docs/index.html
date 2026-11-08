@@ -1324,6 +1324,7 @@ img { max-width: 100%; }
   }
   function placeCamera() {
     hemi.position.set(0, 1, 0);
+    spinQueue = [];
     if (cube.n === PYRA) {
       camFly = null;
       camera.up.copy(pyraUp());
@@ -1389,11 +1390,23 @@ img { max-width: 100%; }
     if (!camFly) return;
     const p = camFly.dur ? Math.min(1, (now - camFly.t0) / camFly.dur) : 1;
     const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
-    const q = camFly.qs.clone().slerp(camFly.qt, e);
+    // A spin goes round a set axis, so a half turn goes the way the arrow pointed.
+    const q = camFly.axis ? new THREE.Quaternion().setFromAxisAngle(camFly.axis, camFly.angle * e).multiply(camFly.qs) : camFly.qs.clone().slerp(camFly.qt, e);
     camera.quaternion.copy(q);
     camera.position.set(0, 0, view.r).applyQuaternion(q);
     camera.up.set(0, 1, 0).applyQuaternion(q);
-    if (p >= 1) camFly = null;
+    if (p >= 1) { camFly = null; if (spinQueue.length) pyraSpin(spinQueue.shift()); }
+  }
+  // The pyramid's arrow keys, like the cube's whole-cube turns: left and right go a third of the way round the
+  // top corner, so the next whole face comes to the front, and up and down flip it over. The view moves rather
+  // than the pieces, and the letters move on with it.
+  let spinQueue = [];
+  function pyraSpin(dir) {
+    if (camFly) { if (spinQueue.length < 2) spinQueue.push(dir); return; }
+    const fr = pyraFrame(), side = dir === 'left' || dir === 'right';
+    const axis = side ? PYRA_DIRS[fr.U].clone() : PYRA_DIRS[fr.L].clone().add(PYRA_DIRS[fr.R]).normalize();
+    const angle = { left: 2 * Math.PI / 3, right: -2 * Math.PI / 3, up: Math.PI, down: -Math.PI }[dir];
+    camFly = { qs: camera.quaternion.clone(), axis, angle, t0: performance.now(), dur: reduceMotion ? 0 : 450 };
   }
   function upFor(d) {
     const dir = d.clone().normalize();
@@ -5208,10 +5221,9 @@ img { max-width: 100%; }
     // Arrow keys turn the whole cube (like Flip): the front face moves the way the arrow points.
     const arrows = { ArrowLeft: 'y', ArrowRight: "y'", ArrowUp: 'x', ArrowDown: "x'" };
     if (arrows[e.key] && cube.n === PYRA) {
-      // The pyramid has no whole-puzzle turns to type, so the arrows swing the view round it.
+      // The pyramid has no whole-puzzle turns to type, so the arrows turn the view round it a face at a time.
       e.preventDefault();
-      camFly = null;
-      orbit({ ArrowLeft: -95, ArrowRight: 95 }[e.key] || 0, { ArrowUp: -95, ArrowDown: 95 }[e.key] || 0);
+      pyraSpin({ ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.key]);
       return;
     }
     if (arrows[e.key]) { e.preventDefault(); if (!e.repeat) userMove(arrows[e.key]); return; }
