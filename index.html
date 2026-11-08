@@ -5510,15 +5510,59 @@
   if (realSite && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
-  const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  // The installed app opens with ?app=1 when the button launches it; that's done with now.
+  if (/[?&]app=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
+  // A window this button opened counts as the app, so it doesn't offer itself again.
+  const ownWindow = window.name === 'deskcube-window';
+  const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true || ownWindow;
   // Android and desktop Chrome/Edge offer an install prompt. Everywhere else the row stays and the dialog
   // explains how, so people can always find it. Only the real site can install, so the Claude preview hides it.
   const appleTouch = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const phoneLike = appleTouch || /Android/.test(navigator.userAgent);
-  let installPrompt = null;
-  $('installBtn').textContent = phoneLike ? 'Get the app' : 'Get the desktop app';
-  $('appBoxText').textContent = phoneLike ? 'Play from your home screen, even offline.' : 'Play in its own window, even offline.';
+  // Chrome and Edge can install it straight from the button. Firefox and Safari on a computer can't, so
+  // there the button opens it in a window of its own instead.
+  const canPrompt = 'onbeforeinstallprompt' in window;
+  let installPrompt = null, appThere = false;
+  function appLabels() {
+    const btn = $('installBtn'), txt = $('appBoxText');
+    if (appThere) { btn.textContent = 'Open the app'; txt.textContent = 'Desk Cube is installed on this ' + (phoneLike ? 'phone.' : 'computer.'); }
+    else if (phoneLike) { btn.textContent = 'Get the app'; txt.textContent = 'Play from your home screen, even offline.'; }
+    else if (canPrompt) { btn.textContent = 'Get the desktop app'; txt.textContent = 'Play in its own window, even offline.'; }
+    else { btn.textContent = 'Open in its own window'; txt.textContent = 'Play in a window of its own, without the browser around it.'; }
+  }
+  appLabels();
   $('appBox').hidden = !realSite || installed;
+  // Chrome and Edge say whether the app is already installed here, so the button can open it instead.
+  if (realSite && !installed && navigator.getInstalledRelatedApps) {
+    navigator.getInstalledRelatedApps().then(apps => { if (apps.length && !installPrompt) { appThere = true; appLabels(); } }).catch(() => {});
+  }
+  // A window just for Desk Cube, without tabs or the address bar, for browsers that can't install it.
+  function openOwnWindow() {
+    const w = Math.min(1200, screen.availWidth - 80), h = Math.min(860, screen.availHeight - 80);
+    const win = window.open(location.origin + '/', 'deskcube-window',
+      `popup,width=${w},height=${h},left=${Math.max(0, (screen.availWidth - w) / 2)},top=${Math.max(0, (screen.availHeight - h) / 2)}`);
+    if (win) { win.focus(); return true; }
+    return false;
+  }
+  // The installed app answers web+deskcube: links (see the manifest), which opens it in its own window.
+  function openInstalledApp() { location.href = 'web+deskcube:open'; }
+  // The browser's install offer can turn up a moment after the page loads; wait briefly for it.
+  function promptSoon(ms) {
+    if (installPrompt || !canPrompt) return Promise.resolve(!!installPrompt);
+    return new Promise(res => {
+      const t0 = performance.now(), tick = () => {
+        if (installPrompt) res(true); else if (performance.now() - t0 > ms) res(false); else setTimeout(tick, 50);
+      };
+      tick();
+    });
+  }
+  async function appButton() {
+    if (appThere && !installPrompt) return openInstalledApp();
+    if (await promptSoon(700)) return runInstallPrompt();
+    // Nothing to install with: on a computer, a window of its own; on a phone, how to add it.
+    if (!phoneLike && openOwnWindow()) return;
+    showInstallDialog();
+  }
   function installSteps(ua = navigator.userAgent) {
     if (appleTouch || /iPad|iPhone|iPod/.test(ua)) return 'In Safari, tap the Share button (the square with an arrow), then choose Add to Home Screen.';
     if (/Android/.test(ua)) return 'Open your browser\'s menu, then choose Install app or Add to Home screen.';
@@ -5543,14 +5587,17 @@
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     installPrompt = e;
+    appThere = false;
+    appLabels();
     if ($('installDialog').open) showInstallDialog();
   });
   window.addEventListener('appinstalled', () => {
     installPrompt = null;
-    $('appBox').hidden = true;
+    appThere = true;
+    appLabels();
     if ($('installDialog').open) $('installDialog').close();
   });
-  $('installBtn').addEventListener('click', () => { if (installPrompt) runInstallPrompt(); else showInstallDialog(); });
+  $('installBtn').addEventListener('click', appButton);
   $('installNow').addEventListener('click', () => { $('installDialog').close(); if (installPrompt) runInstallPrompt(); });
   // deskcube.app/#app is a link to send people straight to this.
   function openAppLink() {

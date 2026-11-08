@@ -3,7 +3,7 @@
 // and the last copy is kept for offline use. The site's images and the pinned library and font
 // files from the CDNs are kept after their first download. Account requests (Supabase) are left alone.
 // Bump CACHE when the images change, so phones fetch the new ones.
-const CACHE = 'deskcube-v1';
+const CACHE = 'deskcube-v2';
 const CDN = ['https://cdnjs.cloudflare.com/', 'https://cdn.jsdelivr.net/', 'https://fonts.googleapis.com/', 'https://fonts.gstatic.com/'];
 
 self.addEventListener('install', e => {
