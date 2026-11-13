@@ -170,6 +170,7 @@
   .replay-clock { font-family: var(--font-mono); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
   .clock .time.running { color: var(--accent); }
   .clock .time.done { color: var(--good); }
+  .clock .time.dnf { color: var(--danger); }
   .status { color: var(--muted); font-size: 0.9rem; min-height: 1.3em; }
   .status.win { color: var(--good); font-weight: 600; }
 
@@ -657,6 +658,7 @@
     .pb-time { margin-right: auto; min-width: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; line-height: 1; font-variant-numeric: tabular-nums; }
     .pb-time.running { color: var(--accent); }
     .pb-time.done { color: var(--good); }
+    .pb-time.dnf { color: var(--danger); }
     .pb-time.inspect { color: var(--muted); }
     .pb-row button { padding: 9px 11px; white-space: nowrap; }
     #pbTurns[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
@@ -1875,7 +1877,10 @@
     $('solves').textContent = state.solves;
     renderSeq($('historySeq'), state.history.slice(-60).map(h => h.label), 'No moves yet');
     timeEl.classList.toggle('running', state.mode === 'running');
-    timeEl.classList.toggle('done', state.mode === 'solved');
+    // A solve that was given up is a DNF, shown in red rather than the green of a finished solve.
+    const gaveUp = state.mode === 'solved' && !!state.gaveUp;
+    timeEl.classList.toggle('done', state.mode === 'solved' && !gaveUp);
+    timeEl.classList.toggle('dnf', gaveUp);
     const compOn = strictRules(), solving = state.mode === 'running' || state.mode === 'inspect';
     $('pauseBtn').hidden = compOn || state.mode !== 'running';
     $('replayLastBtn').hidden = $('shareLastBtn').hidden = !(state.mode === 'solved' && lastReplay && lastReplay.replay);
@@ -1917,7 +1922,7 @@
         state.coachLog = { done: {}, hints: 0, undos: 0 };
         if (dailyOn() || (compActive() && comp.roundId)) {
           // Inspection: 15 seconds to look; the timer starts on the first turn or when time runs out.
-          state.mode = 'inspect';
+          state.mode = 'inspect'; state.gaveUp = false;
           state.inspectStart = performance.now();
           state.beeps = 0;
           setStatus('Inspection: look at the cube. The timer starts on your first turn, or by itself after 15 seconds.');
@@ -1973,7 +1978,7 @@
       const t = Math.max(1, (item.madeAt || item.at || performance.now()) - state.start);
       queue = queue.filter(q => q.layer === null);
       renderStages();
-      state.mode = 'solved';
+      state.mode = 'solved'; state.gaveUp = false;
       renderTime(t);
       state.solves++;
       const pb = !state.best || t < state.best, oldBest = state.best;
@@ -2001,7 +2006,7 @@
   }
   function userMove(m) { const d = decode(m, viewFrame()); if (d) playerTurn({ label: m, ...d }); }
   function startTimer(now) {
-    state.mode = 'running';
+    state.mode = 'running'; state.gaveUp = false;
     state.start = now;
     hideTipNote();
     hideCoach();
@@ -2048,7 +2053,7 @@
     const seq = Array.isArray(given) ? given : scrambleSeq();
     state.scrambling = true;
     lesson.ready = false;
-    state.moves = 0; state.history = []; state.mode = 'idle';
+    state.moves = 0; state.history = []; state.mode = 'idle'; state.gaveUp = false;
     renderTime(0);
     setStatus('Scrambling…');
     stopTrainer();
@@ -5105,7 +5110,7 @@
   function syncPhoneBar() {
     const pb = $('pbTime'), sb = $('scrambleBtn'), ub = $('undoBtn');
     pb.textContent = timeEl.textContent;
-    for (const c of ['running', 'done', 'inspect']) pb.classList.toggle(c, timeEl.classList.contains(c));
+    for (const c of ['running', 'done', 'inspect', 'dnf']) pb.classList.toggle(c, timeEl.classList.contains(c));
     // Competition labels are long; the bar has room for a word.
     $('pbScramble').textContent = sb.textContent.startsWith('Scramble solve') ? 'Next solve' : sb.textContent === 'Start a round' ? 'Start' : sb.textContent;
     $('pbScramble').disabled = sb.disabled;
@@ -5723,6 +5728,7 @@
       if (!strictSolving()) return;
       const t = state.mode === 'running' ? performance.now() - state.start : 0;
       state.mode = 'solved';
+      state.gaveUp = true;
       renderTime(t);
       lastReplay = null;
       if (dailyOn()) dailySolveDone(Math.max(1, t), true, (state.rec || []).join(' '));
@@ -5978,7 +5984,7 @@
     storePaused();
     $('pauseCover').hidden = true;
     if (p.prevMode === 'running') {
-      state.mode = 'running';
+      state.mode = 'running'; state.gaveUp = false;
       state.start = performance.now() - p.elapsed;
       setStatus('Solving…');
     } else {
