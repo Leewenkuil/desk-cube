@@ -152,6 +152,11 @@
   .daily-result { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
   .daily-result.dnf { color: var(--danger); }
   /* Opened from a shared result: a brief glow so the challenge is easy to spot. */
+  /* Past challenges: a week after its day, each one opens again with its own board. */
+  .daily-past { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .daily-past h3 { margin: 0; font-size: 0.9rem; }
+  .past-row { display: flex; gap: 8px; }
+  .past-row select { flex: 1; min-width: 0; font: inherit; font-size: 0.85rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
   .daily.flash { animation: dailyFlash 0.8s ease-in-out 3; border-radius: 10px; }
   @keyframes dailyFlash { 50% { box-shadow: 0 0 0 3px var(--accent); } }
   /* Replay controls over the bottom of the cube. */
@@ -310,6 +315,11 @@
   dialog.lb .mode-switch { display: grid; grid-template-columns: repeat(3, 1fr); }
   dialog.lb .mode-switch button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
   .lb-wrap { max-height: 360px; }
+  .lb-day { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .lb-day-name { flex: 1; min-width: 120px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .lb-step { border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 8px; padding: 4px 12px; font: inherit; cursor: pointer; }
+  .lb-step:disabled { opacity: 0.4; cursor: default; }
+  dialog.lb .mode-switch.lb-when { grid-template-columns: 1fr 1fr; flex-basis: 100%; }
   .lb-list td:nth-child(2) { color: var(--fg); font-family: var(--font-body); font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
   .lb-list td:nth-child(3) { font-family: var(--font-mono); font-weight: 500; }
   .lb-list .lb-times { color: var(--muted); font-family: var(--font-mono); font-size: 0.8rem; }
@@ -828,7 +838,16 @@
     <div class="mode-switch" role="radiogroup" aria-label="Leaderboard type">
       <button role="radio" id="lbSingle" aria-checked="true">Best single</button>
       <button role="radio" id="lbAvg" aria-checked="false">Best average of 5</button>
-      <button role="radio" id="lbDaily" aria-checked="false">Today's daily</button>
+      <button role="radio" id="lbDaily" aria-checked="false">Daily</button>
+    </div>
+    <div class="lb-day" id="lbDayRow" hidden>
+      <button type="button" class="lb-step" id="lbPrev" aria-label="Day before">‹</button>
+      <span class="lb-day-name" id="lbDayName"></span>
+      <button type="button" class="lb-step" id="lbNext" aria-label="Day after">›</button>
+      <div class="mode-switch lb-when" role="radiogroup" aria-label="Which tries">
+        <button role="radio" id="lbOrig" aria-checked="true">On the day</button>
+        <button role="radio" id="lbLate" aria-checked="false">A week later</button>
+      </div>
     </div>
     <div class="acct-list-wrap lb-wrap">
       <table class="acct-list lb-list">
@@ -1177,6 +1196,16 @@
         <button class="primary" id="dailyBtn">Play today's</button>
         <button class="primary" id="dailyShareBtn" hidden title="Copy your result to send to friends">Share result</button>
         <button id="dailyBoardBtn" hidden>Today's results</button>
+      </div>
+      <div class="daily-past" id="pastBox" hidden>
+        <h3>Past challenges</h3>
+        <p class="comp-note">A week after its day, each challenge opens again for one more try. Those times go on a board of their own, so the board from the day itself stays as it was.</p>
+        <div class="past-row">
+          <select id="pastDay" aria-label="Past challenge"></select>
+          <button class="primary" id="pastBtn">Play</button>
+        </div>
+        <p class="daily-result" id="pastResult" hidden></p>
+        <button type="button" class="link" id="pastBoardBtn" hidden>See this one's results</button>
       </div>
     </section>
 
@@ -5721,7 +5750,9 @@
     if (!strictSolving()) return;
     askConfirm({
       title: 'Give up this solve?', ok: 'Give up',
-      text: dailyOn()
+      text: dailyOn() && daily.late
+        ? 'It counts as DNF (did not finish) for this past challenge, and there\'s only one try at it.'
+        : dailyOn()
         ? 'It counts as DNF (did not finish) for today\'s challenge, and there\'s only one try a day.'
         : 'It counts as DNF (did not finish) in this round. One DNF is dropped as your slowest solve; two make the round average DNF.',
     }, () => {
@@ -5763,6 +5794,29 @@
   const dailySeq = day => scrambleSeq(seededRandom('desk-cube daily ' + day));
   function storeDaily() { try { localStorage.setItem(DAILY_KEY, JSON.stringify(daily.local)); } catch (e) {} }
   try { daily.local = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null'); } catch (e) {}
+  // Past challenges open again LATE_DAYS after their day. Each has one more try, kept here by day
+  // ({ day: { started, uid, result, synced } }) and saved with daily_late, which has its own board.
+  const PAST_KEY = 'deskcube-daily-past', LATE_DAYS = 7;
+  daily.late = null;   // the day of the past challenge being played, if that's what's on
+  daily.past = {};
+  try { daily.past = JSON.parse(localStorage.getItem(PAST_KEY) || '{}') || {}; } catch (e) {}
+  function storePast() { try { localStorage.setItem(PAST_KEY, JSON.stringify(daily.past)); } catch (e) {} }
+  for (const p of Object.values(daily.past)) if (p && p.started && !p.result) { p.result = { time: 1, dnf: true, moves: 0 }; p.synced = false; }
+  storePast();
+  const addDays = (day, n) => new Date(Date.parse(day) + n * 864e5).toISOString().slice(0, 10);
+  const dayLabel = day => '#' + dailyNumber(day) + ' · ' + new Date(day + 'T12:00:00Z').toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  // The past challenges open now, newest first.
+  function pastDays() {
+    const out = [];
+    for (let d = addDays(todayUTC(), -LATE_DAYS); dailyNumber(d) >= 1; d = addDays(d, -1)) out.push(d);
+    return out;
+  }
+  function pastResult(day) {
+    const l = daily.past[day];
+    if (l && l.result) return l.result;
+    const row = acct && acct.remote && acct.remote.find(s => s.daily === day && s.daily_late);
+    return row ? { time: row.time_ms, dnf: row.dnf, moves: row.moves } : null;
+  }
   // A try that started but never finished (the page was closed or reloaded) counts as a DNF.
   if (daily.local && daily.local.started && !daily.local.result) {
     daily.local.result = { time: 1, dnf: true, moves: 0 };
@@ -5777,31 +5831,48 @@
     return row ? { time: row.time_ms, dnf: row.dnf, moves: row.moves } : null;
   }
 
-  function startDaily() {
-    const day = todayUTC();
-    if (dailyToday() || daily.active || state.scrambling || cube.n !== 3) return;
+  function startDaily(lateDay) {
+    const late = typeof lateDay === 'string' ? lateDay : null, day = late || todayUTC();
+    if ((late ? pastResult(day) : dailyToday()) || daily.active || state.scrambling || cube.n !== 3) return;
+    if (late && !pastDays().includes(day)) return;
     if (compActive() && comp.roundId && comp.results.length < 5) {
       setStatus('Finish or exit your competition round before the daily challenge.');
       return;
     }
     const mid = state.mode === 'running' || state.mode === 'inspect';
     askConfirm({
-      title: 'Start today\'s daily challenge?', ok: 'Start',
+      title: late ? `Play past challenge ${dayLabel(day)}?` : 'Start today\'s daily challenge?', ok: 'Start',
       text: (mid ? 'Your current solve ends and isn\'t recorded. ' : '')
-        + 'You get one try today. The scramble appears straight away, then 15 seconds to look before the timer starts.',
+        + (late ? 'You get one try at this one. It goes on the "A week later" board, not the one from the day itself. '
+          : 'You get one try today. ')
+        + 'The scramble appears straight away, then 15 seconds to look before the timer starts.',
     }, () => {
-      if (dailyToday() || daily.active || state.scrambling) return;
+      if ((late ? pastResult(day) : dailyToday()) || daily.active || state.scrambling) return;
       clearPaused();
       daily.prevMode = isSpeed() ? null : 'learn';
       if (!isSpeed()) setMode('speed');
       daily.active = true;
-      daily.local = { day, started: true, uid: acct && acct.user ? acct.user.id : null };
-      storeDaily();
+      daily.late = late;
+      const uid = acct && acct.user ? acct.user.id : null;
+      if (late) { daily.past[day] = { started: true, uid }; storePast(); }
+      else { daily.local = { day, started: true, uid }; storeDaily(); }
       scramble(dailySeq(day));
-      setStatus('Daily challenge: scrambling…');
+      setStatus((late ? 'Past challenge ' + dayLabel(day) : 'Daily challenge') + ': scrambling…');
     });
   }
   function dailySolveDone(t, dnf, replayText) {
+    if (daily.late) {
+      const day = daily.late, p = daily.past[day] = { ...daily.past[day], result: { time: Math.round(t), dnf, moves: state.moves }, synced: false };
+      daily.active = false;
+      daily.late = null;
+      storePast();
+      setStatus(`Past challenge ${dayLabel(day)}: ` + (dnf ? 'DNF.' : `${fmt(t)} with ${state.moves} moves.`) + ' It goes on the "A week later" board.', !dnf);
+      accountOnSolve(t, { replay: replayText, dnf, daily: day, late: true }, () => { p.synced = true; storePast(); });
+      if (daily.prevMode === 'learn') setMode('learn');
+      daily.prevMode = null;
+      renderPanel();
+      return;
+    }
     const day = (daily.local && daily.local.day) || todayUTC();
     daily.active = false;
     daily.local = { ...daily.local, day, result: { time: Math.round(t), dnf, moves: state.moves }, synced: false };
@@ -5827,12 +5898,54 @@
       renderPanel();
     });
   }
+  function pastSync() {
+    if (!acct || !acct.user || acct.noLate || acct.noDaily || acct.oldSchema) return;
+    for (const [day, l] of Object.entries(daily.past)) {
+      if (!l || !l.result || l.synced || l.uid !== acct.user.id) continue;
+      if (acct.remote.some(s => s.daily === day && s.daily_late)) { l.synced = true; storePast(); continue; }
+      const row = { time_ms: Math.max(1, l.result.time), moves: l.result.moves, scramble: dailySeq(day).join(' '), dnf: l.result.dnf, daily: day, daily_late: true };
+      acct.sb.from('solves').insert(row).select(solveCols()).single().then(({ data, error }) => {
+        if (error) return;
+        l.synced = true;
+        storePast();
+        acct.remote.unshift(data);
+        renderPanel();
+      });
+    }
+  }
+  function renderPast() {
+    const days = pastDays(), sel = $('pastDay');
+    $('pastBox').hidden = !days.length;
+    if (!days.length) return;
+    const keep = sel.value;
+    sel.innerHTML = '';
+    for (const d of days) {
+      const r = pastResult(d), o = document.createElement('option');
+      o.value = d;
+      o.textContent = dayLabel(d) + (r ? ' · played' : '');
+      sel.appendChild(o);
+    }
+    // Start on the newest one not played yet.
+    sel.value = days.includes(keep) ? keep : days.find(d => !pastResult(d)) || days[0];
+    const day = sel.value, res = pastResult(day);
+    $('pastBtn').disabled = !!res || daily.active || state.scrambling;
+    $('pastBtn').textContent = daily.active && daily.late === day ? 'Your try is on' : res ? 'Played' : 'Play';
+    $('pastResult').hidden = !res;
+    if (res) {
+      $('pastResult').textContent = 'Your try at this one: ' + (res.dnf ? 'DNF' : fmt(res.time) + (res.moves ? ` · ${res.moves} moves` : ''));
+      $('pastResult').classList.toggle('dnf', !!res.dnf);
+    }
+    $('pastBoardBtn').hidden = $('lbBtn').hidden;
+  }
+  $('pastDay').addEventListener('change', renderPast);
+  $('pastBtn').addEventListener('click', () => startDaily($('pastDay').value));
   function renderDaily() {
     if (!daily) return;
+    renderPast();
     const day = todayUTC(), res = dailyToday();
     $('dailyBtn').hidden = !!res;
     $('dailyBtn').disabled = daily.active || state.scrambling;
-    $('dailyBtn').textContent = daily.active ? 'Your try is on' : 'Play today\'s';
+    $('dailyBtn').textContent = daily.active && !daily.late ? 'Your try is on' : 'Play today\'s';
     $('dailyNote').hidden = !!res;
     $('dailyResult').hidden = !res;
     $('dailyShareBtn').hidden = !res;
@@ -6082,7 +6195,7 @@
   // The replay, competition and DNF columns come from supabase-setup.sql; until it has been run again,
   // the page falls back to the original columns (acct.oldSchema) and those features stay off.
   const solveCols = () => 'id, time_ms, moves, scramble, solved_at'
-    + (acct.oldSchema ? '' : ', dnf, competition' + (acct.noDaily ? '' : ', daily') + (acct.noSize ? '' : ', size'));
+    + (acct.oldSchema ? '' : ', dnf, competition' + (acct.noDaily ? '' : ', daily' + (acct.noLate ? '' : ', daily_late')) + (acct.noSize ? '' : ', size'));
   const missingColumn = err => !!err && (err.code === '42703' || err.code === 'PGRST204' || /column .* does not exist|Could not find the .* column/i.test(err.message || ''));
 
   // Speedcubing averages: "average of n" drops the fastest and slowest of n solves in a row
@@ -6127,9 +6240,9 @@
     list.forEach((s, i) => {
       const tr = document.createElement('tr');
       if (!s.dnf && s.time_ms === best) tr.className = 'best';
-      if (s.scramble) tr.title = (s.competition ? 'Competition solve. ' : s.daily ? 'Daily challenge. ' : '') + 'Scramble: ' + s.scramble;
+      if (s.scramble) tr.title = (s.competition ? 'Competition solve. ' : s.daily_late ? `Past daily challenge #${dailyNumber(s.daily)}. ` : s.daily ? 'Daily challenge. ' : '') + 'Scramble: ' + s.scramble;
       const when = new Date(s.solved_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-      const timeText = (s.dnf ? 'DNF' : fmt(s.time_ms)) + (s.competition ? ' · comp' : s.daily ? ' · daily' : '');
+      const timeText = (s.dnf ? 'DNF' : fmt(s.time_ms)) + (s.competition ? ' · comp' : s.daily_late ? ' · past daily' : s.daily ? ' · daily' : '');
       for (const text of [String(n - i), timeText, s.moves === null || s.moves === undefined ? '–' : String(s.moves), when]) {
         const td = document.createElement('td');
         td.textContent = text;
@@ -6155,7 +6268,8 @@
       del.setAttribute('aria-label', `Delete solve ${n - i}`);
       del.addEventListener('click', () => deleteSolve(s, del));
       // The database keeps daily tries for two days, so a bad one can't be deleted and retried.
-      if (!(s.daily && Date.parse(s.daily) >= Date.parse(todayUTC()) - 864e5)) td.appendChild(del);
+      // A past challenge's one try stays for good, for the same reason.
+      if (!s.daily_late && !(s.daily && Date.parse(s.daily) >= Date.parse(todayUTC()) - 864e5)) td.appendChild(del);
       tr.appendChild(td);
       body.appendChild(tr);
     });
@@ -6385,6 +6499,7 @@
       loadSolves(),
       sb.from('profiles').select('*').eq('id', uid).maybeSingle(),
     ]);
+    if (missingColumn(solvesRes.error)) { acct.noLate = true; solvesRes = await loadSolves(); }
     if (missingColumn(solvesRes.error)) { acct.noSize = true; solvesRes = await loadSolves(); }
     if (missingColumn(solvesRes.error)) { acct.noDaily = true; solvesRes = await loadSolves(); }
     if (missingColumn(solvesRes.error)) { acct.oldSchema = true; solvesRes = await loadSolves(); }
@@ -6406,6 +6521,7 @@
     acct.loaded = true;
     useAccountStats();
     dailySync();
+    pastSync();
     renderAccountBtn();
     if (acctDialog.open) renderAccount();
   }
@@ -6620,12 +6736,17 @@
     if (!acct || !acct.user) return;
     const row = { time_ms: Math.max(1, Math.round(t)), moves: state.moves, scramble: state.scrambleText || null };
     if (!acct.oldSchema) Object.assign(row, { replay: extra.replay || null, competition: !!extra.competition, round_id: extra.round_id || null, dnf: !!extra.dnf });
+    if (extra.late && (acct.oldSchema || acct.noDaily || acct.noLate)) {
+      statusEl.textContent += ' Past challenges can\'t be saved to accounts until the database is updated.';
+      return;
+    }
     if (!acct.oldSchema && !acct.noDaily && extra.daily) row.daily = extra.daily;
+    if (extra.late) row.daily_late = true;
     if (!acct.oldSchema && !acct.noSize) row.size = cube.n;
     else if (cube.n !== 3) { statusEl.textContent += ' Only 3×3 solves can be saved to accounts for now.'; return; }
     acct.sb.from('solves').insert(row).select(solveCols()).single().then(({ data, error }) => {
       if (error) {
-        statusEl.textContent += error.code === '23505' ? ' You\'d already done today\'s challenge on another computer, so this one isn\'t saved.'
+        statusEl.textContent += error.code === '23505' ? ` You'd already done ${extra.late ? 'this challenge' : 'today\'s challenge'} on another computer, so this one isn't saved.`
           : ' It could not be saved to your account.';
         return;
       }
@@ -6730,25 +6851,41 @@
     });
 
     // Leaderboard: public, read through two database functions that return only names and results.
-    const lb = { kind: 'single' };
+    // Daily boards go day by day: the tries on the day itself, and from a week later the separate board of second tries.
+    const lb = { kind: 'single', day: null, late: false };
     async function loadLeaderboard() {
-      const kind = lb.kind, isDaily = kind === 'daily', single = kind === 'single' || isDaily, day = todayUTC();
+      const today = todayUTC();
+      if (!lb.day || lb.day > today || dailyNumber(lb.day) < 1) lb.day = today;
+      const lateOpen = lb.day <= addDays(today, -LATE_DAYS);
+      if (!lateOpen) lb.late = false;
+      const kind = lb.kind, isDaily = kind === 'daily', single = kind === 'single' || isDaily, day = lb.day, late = isDaily && lb.late;
+      const key = kind + day + late;
+      lb.key = key;
       $('lbSingle').setAttribute('aria-checked', kind === 'single');
       $('lbAvg').setAttribute('aria-checked', kind === 'avg');
       $('lbDaily').setAttribute('aria-checked', isDaily);
-      $('lbNote').textContent = isDaily
-        ? 'Daily challenge: everyone\'s one try at today\'s scramble. Press ▶ to watch a solve.'
-        : 'Only solves from Official competition mode count, so everyone had the same 15 seconds to look at the cube. Press ▶ to watch a solve.';
+      $('lbDayRow').hidden = !isDaily;
+      $('lbDayName').textContent = dayLabel(day) + (day === today ? ' (today)' : '');
+      $('lbPrev').disabled = dailyNumber(day) <= 1;
+      $('lbNext').disabled = day >= today;
+      $('lbOrig').setAttribute('aria-checked', !late);
+      $('lbLate').setAttribute('aria-checked', late);
+      $('lbLate').disabled = !lateOpen;
+      $('lbLate').title = lateOpen ? '' : 'Opens on ' + new Date(addDays(day, LATE_DAYS) + 'T12:00:00Z').toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+      $('lbNote').textContent = !isDaily
+        ? 'Only solves from Official competition mode count, so everyone had the same 15 seconds to look at the cube. Press ▶ to watch a solve.'
+        : late ? 'A week later: second tries at this scramble, once it opened again. Kept apart from the board on the day. Press ▶ to watch a solve.'
+        : 'On the day: everyone\'s one try at this scramble on its own day. Press ▶ to watch a solve.';
       $('lbHead').innerHTML = single
-        ? `<tr><th>#</th><th>Name</th><th>Time</th><th>Moves</th><th>${isDaily ? 'Time of day' : 'When'}</th><th><span class="sr-only">Replay</span></th></tr>`
+        ? `<tr><th>#</th><th>Name</th><th>Time</th><th>Moves</th><th>${isDaily && day === today && !late ? 'Time of day' : 'When'}</th><th><span class="sr-only">Replay</span></th></tr>`
         : '<tr><th>#</th><th>Name</th><th>Average</th><th>Times</th><th>When</th></tr>';
       const body = $('lbBody');
       body.innerHTML = '';
       $('lbMsg').className = 'acct-msg';
       $('lbMsg').textContent = 'Loading…';
-      const { data, error } = isDaily ? await acct.sb.rpc('leaderboard_daily', { day, lim: 100 })
+      const { data, error } = isDaily ? await acct.sb.rpc('leaderboard_daily', late ? { day, lim: 100, late: true } : { day, lim: 100 })
         : await acct.sb.rpc(single ? 'leaderboard_singles' : 'leaderboard_averages', { lim: 50 });
-      if (lb.kind !== kind) return;
+      if (lb.key !== key) return;
       if (error) {
         $('lbMsg').textContent = /function .* does not exist|Could not find the function/i.test(error.message || '')
           ? 'The leaderboard needs the database update first (supabase-setup.sql).' : friendly(error);
@@ -6756,10 +6893,13 @@
         return;
       }
       $('lbMsg').textContent = data.length ? ''
-        : isDaily ? 'Nobody has done today\'s challenge yet. Be the first!' : 'No results yet. Finish a round in Official competition mode to be the first.';
+        : !isDaily ? 'No results yet. Finish a round in Official competition mode to be the first.'
+        : late ? 'Nobody has had a second go at this one yet. Play it from Past challenges under the daily challenge.'
+        : day === today ? 'Nobody has done today\'s challenge yet. Be the first!' : 'Nobody did this one on the day.';
       data.forEach((r, i) => {
         const tr = document.createElement('tr');
-        const when = isDaily ? new Date(r.solved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        const when = isDaily && day === today && !late ? new Date(r.solved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : isDaily ? new Date(r.solved_at).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
           : new Date(single ? r.solved_at : r.finished_at).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
         const cells = single
           ? [r.dnf ? '–' : String(i + 1), r.name, r.dnf ? 'DNF' : fmt(r.time_ms), r.moves === null ? '–' : String(r.moves), when]
@@ -6809,8 +6949,21 @@
     $('lbSingle').addEventListener('click', () => { lb.kind = 'single'; loadLeaderboard(); });
     $('lbAvg').addEventListener('click', () => { lb.kind = 'avg'; loadLeaderboard(); });
     $('lbDaily').addEventListener('click', () => { lb.kind = 'daily'; loadLeaderboard(); });
+    $('lbPrev').addEventListener('click', () => { lb.day = addDays(lb.day, -1); loadLeaderboard(); });
+    $('lbNext').addEventListener('click', () => { lb.day = addDays(lb.day, 1); loadLeaderboard(); });
+    $('lbOrig').addEventListener('click', () => { lb.late = false; loadLeaderboard(); });
+    $('lbLate').addEventListener('click', () => { lb.late = true; loadLeaderboard(); });
+    $('pastBoardBtn').addEventListener('click', () => {
+      lb.kind = 'daily';
+      lb.day = $('pastDay').value;
+      lb.late = true;
+      if (!$('lbDialog').open) $('lbDialog').showModal();
+      loadLeaderboard();
+    });
     $('dailyBoardBtn').addEventListener('click', () => {
       lb.kind = 'daily';
+      lb.day = todayUTC();
+      lb.late = false;
       if (!$('lbDialog').open) $('lbDialog').showModal();
       loadLeaderboard();
     });

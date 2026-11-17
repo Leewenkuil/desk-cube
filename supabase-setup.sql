@@ -281,5 +281,42 @@ $$;
 revoke all on function public.coach_give_back(uuid) from public, anon, authenticated;
 grant execute on function public.coach_give_back(uuid) to service_role;
 
+-- ===== Update 7: past daily challenges, a week later =====
+-- A week after its day, each daily challenge opens again for one more try per person, saved with daily_late.
+-- Those tries have a board of their own, so the board from the day itself never changes.
+alter table public.solves add column if not exists daily_late boolean not null default false;
+drop index if exists public.solves_one_daily;
+create unique index if not exists solves_one_daily on public.solves (user_id, daily, daily_late) where daily is not null;
+drop policy if exists "own solves: insert" on public.solves;
+drop policy if exists "own solves: delete" on public.solves;
+create policy "own solves: insert" on public.solves for insert to authenticated with check (
+  user_id = (select auth.uid())
+  and (daily is not null or not daily_late)
+  and (daily is null
+    or (not daily_late and daily >= (now() at time zone 'utc')::date - 1 and daily <= (now() at time zone 'utc')::date)
+    or (daily_late and daily <= (now() at time zone 'utc')::date - 7))
+);
+-- A past challenge's try can't be deleted, so nobody can delete a bad one and go again.
+create policy "own solves: delete" on public.solves for delete to authenticated using (
+  user_id = (select auth.uid())
+  and not daily_late
+  and (daily is null or daily < (now() at time zone 'utc')::date - 1)
+);
+-- One day's board: the tries on the day (late = false) or the tries a week later (late = true).
+drop function if exists public.leaderboard_daily(date, int);
+create or replace function public.leaderboard_daily(day date, lim int default 50, late boolean default false)
+returns table (name text, time_ms int, moves int, dnf boolean, solved_at timestamptz, scramble text, replay text)
+language sql stable security definer set search_path = ''
+as $$
+  select coalesce(nullif(p.display_name, ''), 'Anonymous cuber'), s.time_ms, s.moves, s.dnf, s.solved_at, s.scramble, s.replay
+  from public.solves s
+  join public.profiles p on p.id = s.user_id and p.on_leaderboard
+  where s.daily = day and s.daily_late = late
+  order by s.dnf, s.time_ms, s.solved_at
+  limit least(greatest(lim, 1), 200);
+$$;
+revoke all on function public.leaderboard_daily(date, int, boolean) from public;
+grant execute on function public.leaderboard_daily(date, int, boolean) to anon, authenticated;
+
 -- To make an account an admin, run this once with that account's email in place of the example:
 -- insert into public.admins (user_id) select id from auth.users where email = 'you@example.com' on conflict do nothing;
